@@ -48,7 +48,7 @@ namespace RealityFractures.EditorTools
             // 1. Create and force refresh asset database folders FIRST
             EnsureAssetFolders();
 
-            // 2. Load generated high-res sci-fi artwork sprite and panel background
+            // 2. Load generated high-res sci-fi artwork JPG sprite and panel background
             Sprite menuBgArt = LoadMainMenuBackgroundSprite();
             Sprite panelBgSprite = CreatePanelBackgroundTexture();
 
@@ -74,6 +74,7 @@ namespace RealityFractures.EditorTools
             string arDiskPath = Path.Combine(Application.dataPath, "_RealityFractures/Scenes/2_ARGame.unity");
 
             Debug.Log($"[RealityFracturesSceneBuilder] Finished BuildAllScenes!\n" +
+                      $"Menu JPG Art Loaded: {menuBgArt != null}\n" +
                       $"0_Splash.unity Exists: {File.Exists(splashDiskPath)} ({splashDiskPath})\n" +
                       $"1_MainMenu.unity Exists: {File.Exists(menuDiskPath)} ({menuDiskPath})\n" +
                       $"2_ARGame.unity Exists: {File.Exists(arDiskPath)} ({arDiskPath})");
@@ -126,18 +127,35 @@ namespace RealityFractures.EditorTools
 
         private static Sprite LoadMainMenuBackgroundSprite()
         {
-            string relPath = "Assets/_RealityFractures/Art/UI_MainMenu_BG.png";
-            string absPath = Path.Combine(Application.dataPath, "_RealityFractures/Art/UI_MainMenu_BG.png");
-            if (File.Exists(absPath))
+            string[] candidates = new string[]
             {
-                AssetDatabase.ImportAsset(relPath, ImportAssetOptions.ForceSynchronousImport);
-                TextureImporter importer = AssetImporter.GetAtPath(relPath) as TextureImporter;
-                if (importer != null && importer.textureType != TextureImporterType.Sprite)
+                "Assets/_RealityFractures/Art/UI_MainMenu_BG.jpg",
+                "Assets/_RealityFractures/Art/UI_MainMenu_BG.png"
+            };
+
+            foreach (string relPath in candidates)
+            {
+                string absPath = Path.Combine(Application.dataPath, relPath.Substring(7));
+                if (File.Exists(absPath))
                 {
-                    importer.textureType = TextureImporterType.Sprite;
-                    importer.SaveAndReimport();
+                    AssetDatabase.ImportAsset(relPath, ImportAssetOptions.ForceSynchronousImport);
+                    TextureImporter importer = AssetImporter.GetAtPath(relPath) as TextureImporter;
+                    if (importer != null)
+                    {
+                        bool dirty = false;
+                        if (importer.textureType != TextureImporterType.Sprite)
+                        {
+                            importer.textureType = TextureImporterType.Sprite;
+                            dirty = true;
+                        }
+                        if (dirty)
+                        {
+                            importer.SaveAndReimport();
+                        }
+                    }
+                    Sprite s = AssetDatabase.LoadAssetAtPath<Sprite>(relPath);
+                    if (s != null) return s;
                 }
-                return AssetDatabase.LoadAssetAtPath<Sprite>(relPath);
             }
             return null;
         }
@@ -229,19 +247,22 @@ namespace RealityFractures.EditorTools
             scaler.referenceResolution = new Vector2(1080, 1920); // Android vertical portrait resolution
             canvasObj.AddComponent<GraphicRaycaster>();
 
-            // Fullscreen Sci-Fi Artwork Background for Android
+            // Fullscreen Sci-Fi Artwork Background for Android (.jpg)
             if (menuBgArt != null)
             {
-                GameObject artBgObj = new("Artwork Background");
+                GameObject artBgObj = new("Artwork Background JPG");
                 artBgObj.transform.SetParent(canvasObj.transform, false);
+                artBgObj.transform.SetAsFirstSibling();
+
                 RectTransform bgRect = artBgObj.AddComponent<RectTransform>();
                 bgRect.anchorMin = Vector2.zero;
                 bgRect.anchorMax = Vector2.one;
                 bgRect.sizeDelta = Vector2.zero;
+                bgRect.anchoredPosition = Vector2.zero;
 
                 Image bgImg = artBgObj.AddComponent<Image>();
                 bgImg.sprite = menuBgArt;
-                bgImg.color = new Color(0.9f, 0.95f, 1f, 0.85f);
+                bgImg.color = Color.white;
             }
 
             // Title Header
