@@ -20,6 +20,18 @@ namespace RealityFractures.EditorTools
         private const string MainMenuScenePath = "Assets/_RealityFractures/Scenes/1_MainMenu.unity";
         private const string ARGameScenePath = "Assets/_RealityFractures/Scenes/2_ARGame.unity";
 
+        [MenuItem("Reality Fractures/Open Main Menu Scene")]
+        public static void OpenMainMenuScene()
+        {
+            EditorSceneManager.OpenScene(MainMenuScenePath);
+        }
+
+        [MenuItem("Reality Fractures/Open AR Game Scene")]
+        public static void OpenARGameScene()
+        {
+            EditorSceneManager.OpenScene(ARGameScenePath);
+        }
+
         [MenuItem("Reality Fractures/Build All 3 Scenes & Prefabs")]
         public static void BuildAllScenes()
         {
@@ -442,9 +454,14 @@ namespace RealityFractures.EditorTools
 
         private static Material CreateMaterial(string name, Color color)
         {
-            Material material = new(Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard"));
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard") ?? Shader.Find("Unlit/Color");
+            Material material = new(shader);
             material.name = name;
             material.color = color;
+            if (material.HasProperty("_BaseColor"))
+            {
+                material.SetColor("_BaseColor", color);
+            }
             return material;
         }
 
