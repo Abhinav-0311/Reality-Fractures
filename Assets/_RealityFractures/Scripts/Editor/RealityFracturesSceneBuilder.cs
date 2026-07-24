@@ -23,21 +23,19 @@ namespace RealityFractures.EditorTools
         [MenuItem("Reality Fractures/Open Main Menu Scene")]
         public static void OpenMainMenuScene()
         {
-            EditorSceneManager.OpenScene(MainMenuScenePath);
+            EditorSceneManager.OpenScene(MainMenuScenePath, OpenSceneMode.Single);
         }
 
         [MenuItem("Reality Fractures/Open AR Game Scene")]
         public static void OpenARGameScene()
         {
-            EditorSceneManager.OpenScene(ARGameScenePath);
+            EditorSceneManager.OpenScene(ARGameScenePath, OpenSceneMode.Single);
         }
 
         [MenuItem("Reality Fractures/Build All 3 Scenes & Prefabs")]
         public static void BuildAllScenes()
         {
-            EnsureDirectory(Path.Combine(Application.dataPath, "_RealityFractures/Scenes"));
-            EnsureDirectory(Path.Combine(Application.dataPath, "_RealityFractures/Prefabs"));
-            EnsureDirectory(Path.Combine(Application.dataPath, "_RealityFractures/Art"));
+            EnsureAssetFolders();
 
             Sprite panelBgSprite = CreatePanelBackgroundTexture();
 
@@ -49,7 +47,45 @@ namespace RealityFractures.EditorTools
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
-            Debug.Log("[RealityFracturesSceneBuilder] Successfully built all 3 scenes (0_Splash, 1_MainMenu, 2_ARGame) and updated Build Settings.");
+
+            // Automatically open Main Menu scene in the Unity Editor
+            EditorSceneManager.OpenScene(MainMenuScenePath, OpenSceneMode.Single);
+
+            Debug.Log("[RealityFracturesSceneBuilder] Successfully built all 3 scenes (0_Splash, 1_MainMenu, 2_ARGame) and loaded 1_MainMenu.");
+        }
+
+        private static void EnsureAssetFolders()
+        {
+            EnsurePhysicalFolder(Application.dataPath + "/_RealityFractures");
+            EnsurePhysicalFolder(Application.dataPath + "/_RealityFractures/Scenes");
+            EnsurePhysicalFolder(Application.dataPath + "/_RealityFractures/Prefabs");
+            EnsurePhysicalFolder(Application.dataPath + "/_RealityFractures/Art");
+
+            if (!AssetDatabase.IsValidFolder("Assets/_RealityFractures"))
+            {
+                AssetDatabase.CreateFolder("Assets", "_RealityFractures");
+            }
+            if (!AssetDatabase.IsValidFolder("Assets/_RealityFractures/Scenes"))
+            {
+                AssetDatabase.CreateFolder("Assets/_RealityFractures", "Scenes");
+            }
+            if (!AssetDatabase.IsValidFolder("Assets/_RealityFractures/Prefabs"))
+            {
+                AssetDatabase.CreateFolder("Assets/_RealityFractures", "Prefabs");
+            }
+            if (!AssetDatabase.IsValidFolder("Assets/_RealityFractures/Art"))
+            {
+                AssetDatabase.CreateFolder("Assets/_RealityFractures", "Art");
+            }
+            AssetDatabase.Refresh();
+        }
+
+        private static void EnsurePhysicalFolder(string path)
+        {
+            if (!Directory.Exists(path))
+            {
+                Directory.CreateDirectory(path);
+            }
         }
 
         private static Sprite CreatePanelBackgroundTexture()
@@ -90,7 +126,6 @@ namespace RealityFractures.EditorTools
         private static void CreateSplashScene()
         {
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            scene.name = "0_Splash";
 
             GameObject cameraObj = new("Main Camera");
             cameraObj.tag = "MainCamera";
@@ -116,14 +151,12 @@ namespace RealityFractures.EditorTools
             GameObject appFlowObj = new("App Flow Controller");
             appFlowObj.AddComponent<AppFlowController>();
 
-            bool saved = EditorSceneManager.SaveScene(scene, SplashScenePath);
-            Debug.Log($"[SceneBuilder] Saved Splash Scene ({SplashScenePath}): {saved}");
+            SaveSceneToDisk(scene, SplashScenePath);
         }
 
         private static void CreateMainMenuScene(Sprite panelBgSprite)
         {
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            scene.name = "1_MainMenu";
 
             GameObject cameraObj = new("Main Camera");
             cameraObj.tag = "MainCamera";
@@ -197,14 +230,12 @@ namespace RealityFractures.EditorTools
             sfxToggle.onValueChanged.AddListener(appFlow.ToggleSFX);
             vfxToggle.onValueChanged.AddListener(appFlow.ToggleVFX);
 
-            bool saved = EditorSceneManager.SaveScene(scene, MainMenuScenePath);
-            Debug.Log($"[SceneBuilder] Saved Main Menu Scene ({MainMenuScenePath}): {saved}");
+            SaveSceneToDisk(scene, MainMenuScenePath);
         }
 
         private static void CreateARGameScene(Sprite panelBgSprite)
         {
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            scene.name = "2_ARGame";
 
             GameObject gameState = new("Game State");
             GameStateController stateController = gameState.AddComponent<GameStateController>();
@@ -253,8 +284,16 @@ namespace RealityFractures.EditorTools
             light.intensity = 1.2f;
             lightObject.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
 
-            bool saved = EditorSceneManager.SaveScene(scene, ARGameScenePath);
-            Debug.Log($"[SceneBuilder] Saved AR Game Scene ({ARGameScenePath}): {saved}");
+            SaveSceneToDisk(scene, ARGameScenePath);
+        }
+
+        private static void SaveSceneToDisk(Scene scene, string path)
+        {
+            EditorSceneManager.MarkSceneDirty(scene);
+            bool saved = EditorSceneManager.SaveScene(scene, path, false);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+            Debug.Log($"[SceneBuilder] Saved Scene ({path}): {saved} | File.Exists: {File.Exists(path)}");
         }
 
         private static void CreateARGameUI(GameStateController stateController, Sprite panelBgSprite)
@@ -474,14 +513,6 @@ namespace RealityFractures.EditorTools
                 new(ARGameScenePath, true)
             };
             EditorBuildSettings.scenes = scenes;
-        }
-
-        private static void EnsureDirectory(string fullPath)
-        {
-            if (!Directory.Exists(fullPath))
-            {
-                Directory.CreateDirectory(fullPath);
-            }
         }
     }
 }
