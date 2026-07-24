@@ -1,3 +1,4 @@
+using System.IO;
 using RealityFractures;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -11,13 +12,133 @@ namespace RealityFractures.EditorTools
 {
     public static class RealityFracturesSceneBuilder
     {
-        private const string ScenePath = "Assets/_RealityFractures/Scenes/RealityFractures_ARScene.unity";
+        private const string ScenesFolder = "Assets/_RealityFractures/Scenes";
+        private const string SplashScenePath = "Assets/_RealityFractures/Scenes/0_Splash.unity";
+        private const string MainMenuScenePath = "Assets/_RealityFractures/Scenes/1_MainMenu.unity";
+        private const string ARGameScenePath = "Assets/_RealityFractures/Scenes/2_ARGame.unity";
 
-        [MenuItem("Reality Fractures/Create AR MVP Scene")]
-        public static void CreateScene()
+        [MenuItem("Reality Fractures/Build All 3 Scenes & Prefabs")]
+        public static void BuildAllScenes()
+        {
+            EnsureDirectory(Path.Combine(Application.dataPath, "_RealityFractures/Scenes"));
+            EnsureDirectory(Path.Combine(Application.dataPath, "_RealityFractures/Prefabs"));
+
+            CreateSplashScene();
+            CreateMainMenuScene();
+            CreateARGameScene();
+
+            RegisterScenesInBuildSettings();
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
+            Debug.Log("[RealityFracturesSceneBuilder] Successfully built all 3 scenes (0_Splash, 1_MainMenu, 2_ARGame) and updated Build Settings.");
+        }
+
+        private static void CreateSplashScene()
         {
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            scene.name = "RealityFractures_ARScene";
+            scene.name = "0_Splash";
+
+            GameObject cameraObj = new("Main Camera");
+            cameraObj.tag = "MainCamera";
+            Camera cam = cameraObj.AddComponent<Camera>();
+            cam.clearFlags = CameraClearFlags.SolidColor;
+            cam.backgroundColor = new Color(0.05f, 0.05f, 0.08f, 1f);
+            cameraObj.AddComponent<AudioListener>();
+
+            GameObject canvasObj = new("Splash Canvas");
+            Canvas canvas = canvasObj.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvasObj.AddComponent<CanvasScaler>();
+            canvasObj.AddComponent<GraphicRaycaster>();
+
+            Text title = CreateText("TitleText", canvasObj.transform, new Vector2(0f, 40f), 42, TextAnchor.MiddleCenter);
+            title.text = "REALITY FRACTURES";
+            title.color = new Color(0.36f, 0.86f, 0.9f, 1f);
+
+            Text subtitle = CreateText("SubtitleText", canvasObj.transform, new Vector2(0f, -20f), 20, TextAnchor.MiddleCenter);
+            subtitle.text = "Temporal Spatial AR Prototype";
+            subtitle.color = new Color(0.8f, 0.8f, 0.85f, 0.8f);
+
+            GameObject appFlowObj = new("App Flow Controller");
+            appFlowObj.AddComponent<AppFlowController>();
+
+            bool saved = EditorSceneManager.SaveScene(scene, SplashScenePath);
+            Debug.Log($"[SceneBuilder] Saved Splash Scene ({SplashScenePath}): {saved}");
+        }
+
+        private static void CreateMainMenuScene()
+        {
+            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            scene.name = "1_MainMenu";
+
+            GameObject cameraObj = new("Main Camera");
+            cameraObj.tag = "MainCamera";
+            Camera cam = cameraObj.AddComponent<Camera>();
+            cam.clearFlags = CameraClearFlags.SolidColor;
+            cam.backgroundColor = new Color(0.08f, 0.08f, 0.12f, 1f);
+            cameraObj.AddComponent<AudioListener>();
+
+            GameObject canvasObj = new("Main Menu Canvas");
+            Canvas canvas = canvasObj.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvasObj.AddComponent<CanvasScaler>();
+            canvasObj.AddComponent<GraphicRaycaster>();
+
+            // Title
+            Text title = CreateText("TitleText", canvasObj.transform, new Vector2(0f, 180f), 38, TextAnchor.MiddleCenter);
+            title.text = "REALITY FRACTURES";
+
+            // Main Menu Panel
+            GameObject mainPanel = CreatePanel("Main Menu Panel", canvasObj.transform);
+            Button startBtn = CreateButton("Start Game Button", mainPanel.transform, new Vector2(0f, 40f), "START NEW FRACTURE");
+            Button settingsBtn = CreateButton("Settings Button", mainPanel.transform, new Vector2(0f, -30f), "SETTINGS");
+            Button quitBtn = CreateButton("Quit Button", mainPanel.transform, new Vector2(0f, -100f), "QUIT");
+
+            // Settings Panel
+            GameObject settingsPanel = CreatePanel("Settings Panel", canvasObj.transform);
+            settingsPanel.SetActive(false);
+            CreateText("SettingsTitle", settingsPanel.transform, new Vector2(0f, 120f), 28, TextAnchor.MiddleCenter).text = "SETTINGS";
+            Toggle soundToggle = CreateToggle("Sound Toggle", settingsPanel.transform, new Vector2(0f, 40f), "Audio Sound Effects");
+            Button resetProgressBtn = CreateButton("Reset Button", settingsPanel.transform, new Vector2(0f, -30f), "RESET PROGRESS");
+            Button closeSettingsBtn = CreateButton("Close Settings Button", settingsPanel.transform, new Vector2(0f, -100f), "BACK");
+
+            // Quit Confirmation Panel
+            GameObject quitPanel = CreatePanel("Quit Panel", canvasObj.transform);
+            quitPanel.SetActive(false);
+            CreateText("QuitTitle", quitPanel.transform, new Vector2(0f, 60f), 26, TextAnchor.MiddleCenter).text = "Exit Application?";
+            Button confirmQuitBtn = CreateButton("Confirm Quit Button", quitPanel.transform, new Vector2(-100f, -40f), "YES");
+            Button cancelQuitBtn = CreateButton("Cancel Quit Button", quitPanel.transform, new Vector2(100f, -40f), "NO");
+
+            // Controller
+            GameObject appFlowObj = new("App Flow Controller");
+            AppFlowController appFlow = appFlowObj.AddComponent<AppFlowController>();
+
+            SerializedObject serializedFlow = new(appFlow);
+            serializedFlow.FindProperty("mainMenuPanel").objectReferenceValue = mainPanel;
+            serializedFlow.FindProperty("settingsPanel").objectReferenceValue = settingsPanel;
+            serializedFlow.FindProperty("quitConfirmationPanel").objectReferenceValue = quitPanel;
+            serializedFlow.FindProperty("soundToggle").objectReferenceValue = soundToggle;
+            serializedFlow.ApplyModifiedPropertiesWithoutUndo();
+
+            // Wire Buttons
+            startBtn.onClick.AddListener(appFlow.LoadARGame);
+            settingsBtn.onClick.AddListener(appFlow.OpenSettings);
+            closeSettingsBtn.onClick.AddListener(appFlow.CloseSettings);
+            resetProgressBtn.onClick.AddListener(appFlow.ResetProgress);
+            quitBtn.onClick.AddListener(appFlow.OpenQuitConfirmation);
+            cancelQuitBtn.onClick.AddListener(appFlow.CloseQuitConfirmation);
+            confirmQuitBtn.onClick.AddListener(appFlow.ConfirmQuitApp);
+            soundToggle.onValueChanged.AddListener(appFlow.ToggleSound);
+
+            bool saved = EditorSceneManager.SaveScene(scene, MainMenuScenePath);
+            Debug.Log($"[SceneBuilder] Saved Main Menu Scene ({MainMenuScenePath}): {saved}");
+        }
+
+        private static void CreateARGameScene()
+        {
+            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            scene.name = "2_ARGame";
 
             GameObject gameState = new("Game State");
             GameStateController stateController = gameState.AddComponent<GameStateController>();
@@ -45,7 +166,7 @@ namespace RealityFractures.EditorTools
             placementIndicator.SetActive(false);
 
             GameObject fracturePrototype = CreateFracturePrototype();
-            GameObject fracturePrefab = PrefabUtility.SaveAsPrefabAsset(fracturePrototype, "Assets/_RealityFractures/Prefabs/FractureRoot_Prototype.prefab");
+            GameObject fracturePrefab = PrefabUtility.SaveAsPrefabAsset(fracturePrototype, "Assets/_RealityFractures/Prefabs/FractureRoot.prefab");
             Object.DestroyImmediate(fracturePrototype);
 
             GameObject placementSystem = new("Placement System");
@@ -58,7 +179,7 @@ namespace RealityFractures.EditorTools
             placementSerialized.FindProperty("gameState").objectReferenceValue = stateController;
             placementSerialized.ApplyModifiedPropertiesWithoutUndo();
 
-            CreateUi(stateController);
+            CreateARGameUI(stateController);
 
             GameObject lightObject = new("Directional Light");
             Light light = lightObject.AddComponent<Light>();
@@ -66,9 +187,40 @@ namespace RealityFractures.EditorTools
             light.intensity = 1.2f;
             lightObject.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
 
-            EditorSceneManager.SaveScene(scene, ScenePath);
-            AssetDatabase.SaveAssets();
-            EditorGUIUtility.PingObject(AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath));
+            bool saved = EditorSceneManager.SaveScene(scene, ARGameScenePath);
+            Debug.Log($"[SceneBuilder] Saved AR Game Scene ({ARGameScenePath}): {saved}");
+        }
+
+        private static void CreateARGameUI(GameStateController stateController)
+        {
+            GameObject canvasObject = new("Minimal AR UI");
+            Canvas canvas = canvasObject.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvasObject.AddComponent<CanvasScaler>();
+            canvasObject.AddComponent<GraphicRaycaster>();
+
+            Text status = CreateText("Status", canvasObject.transform, new Vector2(0f, -90f), 28, TextAnchor.MiddleCenter);
+            Text progress = CreateText("Progress", canvasObject.transform, new Vector2(0f, -132f), 22, TextAnchor.MiddleCenter);
+
+            // Pause Overlay Panel
+            GameObject pausePanel = CreatePanel("Pause Panel", canvasObject.transform);
+            pausePanel.SetActive(false);
+            CreateText("PauseTitle", pausePanel.transform, new Vector2(0f, 120f), 32, TextAnchor.MiddleCenter).text = "GAME PAUSED";
+            Button resumeBtn = CreateButton("Resume Button", pausePanel.transform, new Vector2(0f, 40f), "RESUME");
+            Button restartBtn = CreateButton("Restart Button", pausePanel.transform, new Vector2(0f, -30f), "RESTART");
+            Button mainMenuBtn = CreateButton("Main Menu Button", pausePanel.transform, new Vector2(0f, -100f), "MAIN MENU");
+
+            MinimalARUIController ui = canvasObject.AddComponent<MinimalARUIController>();
+            SerializedObject uiSerialized = new(ui);
+            uiSerialized.FindProperty("gameState").objectReferenceValue = stateController;
+            uiSerialized.FindProperty("statusText").objectReferenceValue = status;
+            uiSerialized.FindProperty("progressText").objectReferenceValue = progress;
+            uiSerialized.FindProperty("pausePanel").objectReferenceValue = pausePanel;
+            uiSerialized.ApplyModifiedPropertiesWithoutUndo();
+
+            resumeBtn.onClick.AddListener(ui.ResumeGame);
+            restartBtn.onClick.AddListener(ui.RestartGame);
+            mainMenuBtn.onClick.AddListener(ui.ReturnToMainMenu);
         }
 
         private static GameObject CreatePlacementIndicator()
@@ -85,7 +237,7 @@ namespace RealityFractures.EditorTools
 
         private static GameObject CreateFracturePrototype()
         {
-            GameObject root = new("FractureRoot_Prototype");
+            GameObject root = new("FractureRoot");
             root.transform.localScale = Vector3.one * 0.35f;
 
             FractureWorldController worldController = root.AddComponent<FractureWorldController>();
@@ -159,23 +311,54 @@ namespace RealityFractures.EditorTools
             Object.DestroyImmediate(segment.GetComponent<Collider>());
         }
 
-        private static void CreateUi(GameStateController stateController)
+        private static GameObject CreatePanel(string name, Transform parent)
         {
-            GameObject canvasObject = new("Minimal AR UI");
-            Canvas canvas = canvasObject.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvasObject.AddComponent<CanvasScaler>();
-            canvasObject.AddComponent<GraphicRaycaster>();
+            GameObject panelObj = new(name);
+            panelObj.transform.SetParent(parent, false);
+            RectTransform rect = panelObj.AddComponent<RectTransform>();
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.sizeDelta = Vector2.zero;
 
-            Text status = CreateText("Status", canvasObject.transform, new Vector2(0f, -90f), 28, TextAnchor.MiddleCenter);
-            Text progress = CreateText("Progress", canvasObject.transform, new Vector2(0f, -132f), 22, TextAnchor.MiddleCenter);
+            Image img = panelObj.AddComponent<Image>();
+            img.color = new Color(0.05f, 0.05f, 0.1f, 0.85f);
+            return panelObj;
+        }
 
-            MinimalARUIController ui = canvasObject.AddComponent<MinimalARUIController>();
-            SerializedObject uiSerialized = new(ui);
-            uiSerialized.FindProperty("gameState").objectReferenceValue = stateController;
-            uiSerialized.FindProperty("statusText").objectReferenceValue = status;
-            uiSerialized.FindProperty("progressText").objectReferenceValue = progress;
-            uiSerialized.ApplyModifiedPropertiesWithoutUndo();
+        private static Button CreateButton(string name, Transform parent, Vector2 anchoredPos, string labelText)
+        {
+            GameObject buttonObj = new(name);
+            buttonObj.transform.SetParent(parent, false);
+            RectTransform rect = buttonObj.AddComponent<RectTransform>();
+            rect.sizeDelta = new Vector2(280f, 50f);
+            rect.anchoredPosition = anchoredPos;
+
+            Image img = buttonObj.AddComponent<Image>();
+            img.color = new Color(0.2f, 0.5f, 0.8f, 1f);
+
+            Button btn = buttonObj.AddComponent<Button>();
+
+            Text text = CreateText("Label", buttonObj.transform, Vector2.zero, 18, TextAnchor.MiddleCenter);
+            text.text = labelText;
+            text.color = Color.white;
+
+            return btn;
+        }
+
+        private static Toggle CreateToggle(string name, Transform parent, Vector2 anchoredPos, string labelText)
+        {
+            GameObject toggleObj = new(name);
+            toggleObj.transform.SetParent(parent, false);
+            RectTransform rect = toggleObj.AddComponent<RectTransform>();
+            rect.sizeDelta = new Vector2(260f, 40f);
+            rect.anchoredPosition = anchoredPos;
+
+            Toggle toggle = toggleObj.AddComponent<Toggle>();
+
+            Text text = CreateText("Label", toggleObj.transform, Vector2.zero, 18, TextAnchor.MiddleCenter);
+            text.text = labelText;
+
+            return toggle;
         }
 
         private static Text CreateText(string name, Transform parent, Vector2 anchoredPosition, int size, TextAnchor anchor)
@@ -183,9 +366,10 @@ namespace RealityFractures.EditorTools
             GameObject textObject = new(name);
             textObject.transform.SetParent(parent, false);
             RectTransform rect = textObject.AddComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.5f, 1f);
-            rect.anchorMax = new Vector2(0.5f, 1f);
-            rect.sizeDelta = new Vector2(720f, 52f);
+            RectTransformUtility.CalculateRelativeKeyboardBounds(rect);
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = new Vector2(600f, 50f);
             rect.anchoredPosition = anchoredPosition;
 
             Text text = textObject.AddComponent<Text>();
@@ -203,6 +387,25 @@ namespace RealityFractures.EditorTools
             material.name = name;
             material.color = color;
             return material;
+        }
+
+        private static void RegisterScenesInBuildSettings()
+        {
+            EditorBuildSettingsScene[] scenes = new EditorBuildSettingsScene[]
+            {
+                new(SplashScenePath, true),
+                new(MainMenuScenePath, true),
+                new(ARGameScenePath, true)
+            };
+            EditorBuildSettings.scenes = scenes;
+        }
+
+        private static void EnsureDirectory(string fullPath)
+        {
+            if (!Directory.Exists(fullPath))
+            {
+                Directory.CreateDirectory(fullPath);
+            }
         }
     }
 }
