@@ -30,6 +30,16 @@ namespace RealityFractures.EditorTools
             EditorSceneManager.OpenScene(ARGameScenePath, OpenSceneMode.Single);
         }
 
+        [MenuItem("Reality Fractures/Force Refresh Project Window")]
+        public static void ForceRefreshWindow()
+        {
+            SetWorkingDirectoryToProjectRoot();
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            EditorApplication.RepaintProjectWindow();
+            EditorApplication.RepaintHierarchyWindow();
+        }
+
         [MenuItem("Reality Fractures/Build All 3 Scenes & Prefabs")]
         public static void BuildAllScenes()
         {
@@ -51,7 +61,9 @@ namespace RealityFractures.EditorTools
 
             // 5. Force asset database save & refresh
             AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            EditorApplication.RepaintProjectWindow();
+            EditorApplication.RepaintHierarchyWindow();
 
             // 6. Open Main Menu scene in Unity Editor
             EditorSceneManager.OpenScene(MainMenuScenePath, OpenSceneMode.Single);
@@ -80,7 +92,7 @@ namespace RealityFractures.EditorTools
             EnsurePhysicalFolder(basePhysical + "/Prefabs");
             EnsurePhysicalFolder(basePhysical + "/Art");
 
-            AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
 
             if (!AssetDatabase.IsValidFolder("Assets/_RealityFractures"))
             {
@@ -100,7 +112,7 @@ namespace RealityFractures.EditorTools
             }
 
             AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
         }
 
         private static void EnsurePhysicalFolder(string path)
@@ -136,7 +148,7 @@ namespace RealityFractures.EditorTools
                 File.WriteAllBytes(absPath, bytes);
                 Object.DestroyImmediate(tex);
 
-                AssetDatabase.ImportAsset(relPath, ImportAssetOptions.ForceUpdate);
+                AssetDatabase.ImportAsset(relPath, ImportAssetOptions.ForceSynchronousImport);
                 TextureImporter importer = AssetImporter.GetAtPath(relPath) as TextureImporter;
                 if (importer != null)
                 {
@@ -314,14 +326,22 @@ namespace RealityFractures.EditorTools
 
         private static void SaveSceneAsset(Scene scene, string relativePath)
         {
-            EditorSceneManager.MarkSceneDirty(scene);
-            bool saved = EditorSceneManager.SaveScene(scene, relativePath, false);
-            AssetDatabase.SaveAssets();
-            AssetDatabase.ImportAsset(relativePath, ImportAssetOptions.ForceUpdate);
+            string fullPathOnDisk = Path.Combine(Application.dataPath, relativePath.Substring(7)).Replace('\\', '/');
+            string dir = Path.GetDirectoryName(fullPathOnDisk);
+            if (!Directory.Exists(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
 
-            string filename = Path.GetFileName(relativePath);
-            string fullPathOnDisk = Path.Combine(Application.dataPath, "_RealityFractures/Scenes", filename);
-            Debug.Log($"[SceneBuilder] Saved Scene ({relativePath}) | SaveResult: {saved} | PhysicalFileExists: {File.Exists(fullPathOnDisk)}");
+            Scene activeScene = EditorSceneManager.GetActiveScene();
+            EditorSceneManager.MarkSceneDirty(activeScene);
+
+            bool saved1 = EditorSceneManager.SaveScene(activeScene, relativePath, false);
+            bool saved2 = EditorSceneManager.SaveScene(activeScene, fullPathOnDisk, false);
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.ImportAsset(relativePath, ImportAssetOptions.ForceSynchronousImport);
+            Debug.Log($"[SceneBuilder] Saved ({relativePath}) | Save1: {saved1} | Save2: {saved2} | DiskExists: {File.Exists(fullPathOnDisk)}");
         }
 
         private static void CreateARGameUI(GameStateController stateController, Sprite panelBgSprite)
