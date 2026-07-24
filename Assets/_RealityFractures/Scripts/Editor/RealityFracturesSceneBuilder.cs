@@ -48,12 +48,13 @@ namespace RealityFractures.EditorTools
             // 1. Create and force refresh asset database folders FIRST
             EnsureAssetFolders();
 
-            // 2. Create background texture
+            // 2. Load generated high-res sci-fi artwork sprite and panel background
+            Sprite menuBgArt = LoadMainMenuBackgroundSprite();
             Sprite panelBgSprite = CreatePanelBackgroundTexture();
 
-            // 3. Build each scene individually and write to disk
+            // 3. Build each scene individually and flush to disk immediately
             CreateAndSaveSplashScene();
-            CreateAndSaveMainMenuScene(panelBgSprite);
+            CreateAndSaveMainMenuScene(panelBgSprite, menuBgArt);
             CreateAndSaveARGameScene(panelBgSprite);
 
             // 4. Register in build settings
@@ -72,7 +73,7 @@ namespace RealityFractures.EditorTools
             string menuDiskPath = Path.Combine(Application.dataPath, "_RealityFractures/Scenes/1_MainMenu.unity");
             string arDiskPath = Path.Combine(Application.dataPath, "_RealityFractures/Scenes/2_ARGame.unity");
 
-            Debug.Log($"[RealityFracturesSceneBuilder] Completed BuildAllScenes!\n" +
+            Debug.Log($"[RealityFracturesSceneBuilder] Finished BuildAllScenes!\n" +
                       $"0_Splash.unity Exists: {File.Exists(splashDiskPath)} ({splashDiskPath})\n" +
                       $"1_MainMenu.unity Exists: {File.Exists(menuDiskPath)} ({menuDiskPath})\n" +
                       $"2_ARGame.unity Exists: {File.Exists(arDiskPath)} ({arDiskPath})");
@@ -121,6 +122,24 @@ namespace RealityFractures.EditorTools
             {
                 Directory.CreateDirectory(path);
             }
+        }
+
+        private static Sprite LoadMainMenuBackgroundSprite()
+        {
+            string relPath = "Assets/_RealityFractures/Art/UI_MainMenu_BG.png";
+            string absPath = Path.Combine(Application.dataPath, "_RealityFractures/Art/UI_MainMenu_BG.png");
+            if (File.Exists(absPath))
+            {
+                AssetDatabase.ImportAsset(relPath, ImportAssetOptions.ForceSynchronousImport);
+                TextureImporter importer = AssetImporter.GetAtPath(relPath) as TextureImporter;
+                if (importer != null && importer.textureType != TextureImporterType.Sprite)
+                {
+                    importer.textureType = TextureImporterType.Sprite;
+                    importer.SaveAndReimport();
+                }
+                return AssetDatabase.LoadAssetAtPath<Sprite>(relPath);
+            }
+            return null;
         }
 
         private static Sprite CreatePanelBackgroundTexture()
@@ -191,7 +210,7 @@ namespace RealityFractures.EditorTools
             SaveSceneAsset(scene, SplashScenePath);
         }
 
-        private static void CreateAndSaveMainMenuScene(Sprite panelBgSprite)
+        private static void CreateAndSaveMainMenuScene(Sprite panelBgSprite, Sprite menuBgArt)
         {
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
@@ -205,42 +224,59 @@ namespace RealityFractures.EditorTools
             GameObject canvasObj = new("Main Menu Canvas");
             Canvas canvas = canvasObj.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvasObj.AddComponent<CanvasScaler>();
+            CanvasScaler scaler = canvasObj.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1080, 1920); // Android vertical portrait resolution
             canvasObj.AddComponent<GraphicRaycaster>();
 
+            // Fullscreen Sci-Fi Artwork Background for Android
+            if (menuBgArt != null)
+            {
+                GameObject artBgObj = new("Artwork Background");
+                artBgObj.transform.SetParent(canvasObj.transform, false);
+                RectTransform bgRect = artBgObj.AddComponent<RectTransform>();
+                bgRect.anchorMin = Vector2.zero;
+                bgRect.anchorMax = Vector2.one;
+                bgRect.sizeDelta = Vector2.zero;
+
+                Image bgImg = artBgObj.AddComponent<Image>();
+                bgImg.sprite = menuBgArt;
+                bgImg.color = new Color(0.9f, 0.95f, 1f, 0.85f);
+            }
+
             // Title Header
-            Text title = CreateText("TitleText", canvasObj.transform, new Vector2(0f, 200f), 40, TextAnchor.MiddleCenter);
+            Text title = CreateText("TitleText", canvasObj.transform, new Vector2(0f, 400f), 52, TextAnchor.MiddleCenter);
             title.text = "REALITY FRACTURES";
             title.color = new Color(0.36f, 0.86f, 0.9f, 1f);
 
-            Text subtitle = CreateText("SubtitleText", canvasObj.transform, new Vector2(0f, 150f), 18, TextAnchor.MiddleCenter);
-            subtitle.text = "Select an option to begin";
-            subtitle.color = new Color(0.7f, 0.75f, 0.85f, 0.9f);
+            Text subtitle = CreateText("SubtitleText", canvasObj.transform, new Vector2(0f, 330f), 24, TextAnchor.MiddleCenter);
+            subtitle.text = "Temporal Spatial AR Prototype";
+            subtitle.color = new Color(0.7f, 0.85f, 0.95f, 0.9f);
 
             // Main Menu Panel
-            GameObject mainPanel = CreatePanel("Main Menu Panel", canvasObj.transform, panelBgSprite, new Vector2(380f, 320f));
-            Button startBtn = CreateButton("Start Game Button", mainPanel.transform, new Vector2(0f, 60f), "START NEW FRACTURE");
+            GameObject mainPanel = CreatePanel("Main Menu Panel", canvasObj.transform, panelBgSprite, new Vector2(480f, 400f));
+            Button startBtn = CreateButton("Start Game Button", mainPanel.transform, new Vector2(0f, 80f), "START NEW FRACTURE");
             Button settingsBtn = CreateButton("Settings Button", mainPanel.transform, new Vector2(0f, -10f), "SETTINGS");
-            Button quitBtn = CreateButton("Quit Button", mainPanel.transform, new Vector2(0f, -80f), "QUIT");
+            Button quitBtn = CreateButton("Quit Button", mainPanel.transform, new Vector2(0f, -100f), "QUIT");
 
             // Settings Panel
-            GameObject settingsPanel = CreatePanel("Settings Panel", canvasObj.transform, panelBgSprite, new Vector2(460f, 420f));
+            GameObject settingsPanel = CreatePanel("Settings Panel", canvasObj.transform, panelBgSprite, new Vector2(560f, 520f));
             settingsPanel.SetActive(false);
-            CreateText("SettingsTitle", settingsPanel.transform, new Vector2(0f, 160f), 28, TextAnchor.MiddleCenter).text = "SETTINGS";
+            CreateText("SettingsTitle", settingsPanel.transform, new Vector2(0f, 200f), 32, TextAnchor.MiddleCenter).text = "SETTINGS";
             
-            Toggle soundToggle = CreateToggle("Sound Toggle", settingsPanel.transform, new Vector2(0f, 90f), "Master Sound Effects");
-            Toggle sfxToggle = CreateToggle("SFX Toggle", settingsPanel.transform, new Vector2(0f, 35f), "Ambient Audio FX");
-            Toggle vfxToggle = CreateToggle("VFX Toggle", settingsPanel.transform, new Vector2(0f, -20f), "High Quality Visual FX");
+            Toggle soundToggle = CreateToggle("Sound Toggle", settingsPanel.transform, new Vector2(0f, 110f), "Master Sound Effects");
+            Toggle sfxToggle = CreateToggle("SFX Toggle", settingsPanel.transform, new Vector2(0f, 40f), "Ambient Audio FX");
+            Toggle vfxToggle = CreateToggle("VFX Toggle", settingsPanel.transform, new Vector2(0f, -30f), "High Quality Visual FX");
             
-            Button resetProgressBtn = CreateButton("Reset Button", settingsPanel.transform, new Vector2(0f, -80f), "RESET PROGRESS");
-            Button closeSettingsBtn = CreateButton("Close Settings Button", settingsPanel.transform, new Vector2(0f, -145f), "BACK");
+            Button resetProgressBtn = CreateButton("Reset Button", settingsPanel.transform, new Vector2(0f, -110f), "RESET PROGRESS");
+            Button closeSettingsBtn = CreateButton("Close Settings Button", settingsPanel.transform, new Vector2(0f, -185f), "BACK");
 
             // Quit Confirmation Panel
-            GameObject quitPanel = CreatePanel("Quit Panel", canvasObj.transform, panelBgSprite, new Vector2(400f, 220f));
+            GameObject quitPanel = CreatePanel("Quit Panel", canvasObj.transform, panelBgSprite, new Vector2(480f, 280f));
             quitPanel.SetActive(false);
-            CreateText("QuitTitle", quitPanel.transform, new Vector2(0f, 50f), 24, TextAnchor.MiddleCenter).text = "Exit Application?";
-            Button confirmQuitBtn = CreateButton("Confirm Quit Button", quitPanel.transform, new Vector2(-80f, -30f), "YES");
-            Button cancelQuitBtn = CreateButton("Cancel Quit Button", quitPanel.transform, new Vector2(80f, -30f), "NO");
+            CreateText("QuitTitle", quitPanel.transform, new Vector2(0f, 60f), 28, TextAnchor.MiddleCenter).text = "Exit Application?";
+            Button confirmQuitBtn = CreateButton("Confirm Quit Button", quitPanel.transform, new Vector2(-100f, -40f), "YES");
+            Button cancelQuitBtn = CreateButton("Cancel Quit Button", quitPanel.transform, new Vector2(100f, -40f), "NO");
 
             // AppFlowController
             GameObject appFlowObj = new("App Flow Controller");
@@ -326,22 +362,15 @@ namespace RealityFractures.EditorTools
 
         private static void SaveSceneAsset(Scene scene, string relativePath)
         {
-            string fullPathOnDisk = Path.Combine(Application.dataPath, relativePath.Substring(7)).Replace('\\', '/');
-            string dir = Path.GetDirectoryName(fullPathOnDisk);
-            if (!Directory.Exists(dir))
-            {
-                Directory.CreateDirectory(dir);
-            }
-
             Scene activeScene = EditorSceneManager.GetActiveScene();
             EditorSceneManager.MarkSceneDirty(activeScene);
 
-            bool saved1 = EditorSceneManager.SaveScene(activeScene, relativePath, false);
-            bool saved2 = EditorSceneManager.SaveScene(activeScene, fullPathOnDisk, false);
-
+            bool saved = EditorSceneManager.SaveScene(activeScene, relativePath, false);
             AssetDatabase.SaveAssets();
-            AssetDatabase.ImportAsset(relativePath, ImportAssetOptions.ForceSynchronousImport);
-            Debug.Log($"[SceneBuilder] Saved ({relativePath}) | Save1: {saved1} | Save2: {saved2} | DiskExists: {File.Exists(fullPathOnDisk)}");
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+
+            string fullPathOnDisk = Path.Combine(Application.dataPath, relativePath.Substring(7)).Replace('\\', '/');
+            Debug.Log($"[SceneBuilder] Saved ({relativePath}) | Save: {saved} | DiskExists: {File.Exists(fullPathOnDisk)}");
         }
 
         private static void CreateARGameUI(GameStateController stateController, Sprite panelBgSprite)
@@ -349,19 +378,21 @@ namespace RealityFractures.EditorTools
             GameObject canvasObject = new("Minimal AR UI");
             Canvas canvas = canvasObject.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvasObject.AddComponent<CanvasScaler>();
+            CanvasScaler scaler = canvasObject.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1080, 1920);
             canvasObject.AddComponent<GraphicRaycaster>();
 
-            Text status = CreateText("Status", canvasObject.transform, new Vector2(0f, -90f), 28, TextAnchor.MiddleCenter);
-            Text progress = CreateText("Progress", canvasObject.transform, new Vector2(0f, -132f), 22, TextAnchor.MiddleCenter);
+            Text status = CreateText("Status", canvasObject.transform, new Vector2(0f, -120f), 32, TextAnchor.MiddleCenter);
+            Text progress = CreateText("Progress", canvasObject.transform, new Vector2(0f, -180f), 24, TextAnchor.MiddleCenter);
 
             // Pause Overlay Panel
-            GameObject pausePanel = CreatePanel("Pause Panel", canvasObject.transform, panelBgSprite, new Vector2(400f, 320f));
+            GameObject pausePanel = CreatePanel("Pause Panel", canvasObject.transform, panelBgSprite, new Vector2(480f, 380f));
             pausePanel.SetActive(false);
-            CreateText("PauseTitle", pausePanel.transform, new Vector2(0f, 110f), 32, TextAnchor.MiddleCenter).text = "GAME PAUSED";
-            Button resumeBtn = CreateButton("Resume Button", pausePanel.transform, new Vector2(0f, 40f), "RESUME");
-            Button restartBtn = CreateButton("Restart Button", pausePanel.transform, new Vector2(0f, -25f), "RESTART");
-            Button mainMenuBtn = CreateButton("Main Menu Button", pausePanel.transform, new Vector2(0f, -90f), "MAIN MENU");
+            CreateText("PauseTitle", pausePanel.transform, new Vector2(0f, 130f), 36, TextAnchor.MiddleCenter).text = "GAME PAUSED";
+            Button resumeBtn = CreateButton("Resume Button", pausePanel.transform, new Vector2(0f, 50f), "RESUME");
+            Button restartBtn = CreateButton("Restart Button", pausePanel.transform, new Vector2(0f, -30f), "RESTART");
+            Button mainMenuBtn = CreateButton("Main Menu Button", pausePanel.transform, new Vector2(0f, -110f), "MAIN MENU");
 
             MinimalARUIController ui = canvasObject.AddComponent<MinimalARUIController>();
             SerializedObject uiSerialized = new(ui);
@@ -489,7 +520,7 @@ namespace RealityFractures.EditorTools
             GameObject buttonObj = new(name);
             buttonObj.transform.SetParent(parent, false);
             RectTransform rect = buttonObj.AddComponent<RectTransform>();
-            rect.sizeDelta = new Vector2(300f, 50f);
+            rect.sizeDelta = new Vector2(360f, 65f);
             rect.anchoredPosition = anchoredPos;
 
             Image img = buttonObj.AddComponent<Image>();
@@ -497,7 +528,7 @@ namespace RealityFractures.EditorTools
 
             Button btn = buttonObj.AddComponent<Button>();
 
-            Text text = CreateText("Label", buttonObj.transform, Vector2.zero, 18, TextAnchor.MiddleCenter);
+            Text text = CreateText("Label", buttonObj.transform, Vector2.zero, 22, TextAnchor.MiddleCenter);
             text.text = labelText;
             text.color = Color.white;
 
@@ -509,12 +540,12 @@ namespace RealityFractures.EditorTools
             GameObject toggleObj = new(name);
             toggleObj.transform.SetParent(parent, false);
             RectTransform rect = toggleObj.AddComponent<RectTransform>();
-            rect.sizeDelta = new Vector2(340f, 40f);
+            rect.sizeDelta = new Vector2(400f, 50f);
             rect.anchoredPosition = anchoredPos;
 
             Toggle toggle = toggleObj.AddComponent<Toggle>();
 
-            Text text = CreateText("Label", toggleObj.transform, Vector2.zero, 18, TextAnchor.MiddleCenter);
+            Text text = CreateText("Label", toggleObj.transform, Vector2.zero, 22, TextAnchor.MiddleCenter);
             text.text = labelText;
 
             return toggle;
@@ -527,7 +558,7 @@ namespace RealityFractures.EditorTools
             RectTransform rect = textObject.AddComponent<RectTransform>();
             rect.anchorMin = new Vector2(0.5f, 0.5f);
             rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = new Vector2(600f, 50f);
+            rect.sizeDelta = new Vector2(700f, 60f);
             rect.anchoredPosition = anchoredPosition;
 
             Text text = textObject.AddComponent<Text>();

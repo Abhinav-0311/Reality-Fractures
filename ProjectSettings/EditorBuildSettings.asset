@@ -4,7 +4,16 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/_RealityFractures/Scenes/0_Splash.unity
+    guid: 9c9eb837f9f44bd45b9685cfba397603
+  - enabled: 1
+    path: Assets/_RealityFractures/Scenes/1_MainMenu.unity
+    guid: fd2ad82db7658ee43a63f6d78a36cb56
+  - enabled: 1
+    path: Assets/_RealityFractures/Scenes/2_ARGame.unity
+    guid: 8651b0fefcff31948aa862b9c68444b8
   m_configObjects:
     UnityEditor.XR.ARCore.ARCoreSettings: {fileID: 11400000, guid: 6baa00e99bd03e8458dc4fdfdd850d52, type: 2}
     com.unity.xr.arfoundation.simulation_settings: {fileID: 11400000, guid: 267f7194df1229944a83fa8faf245f06, type: 2}
