@@ -18,9 +18,10 @@ namespace RealityFractures
         [SerializeField] private GameObject settingsPanel;
         [SerializeField] private GameObject quitConfirmationPanel;
 
-        [Header("Settings Toggles")]
+        [Header("Settings Controls")]
         [SerializeField] private Toggle soundToggle;
-        [SerializeField] private Toggle vibrationToggle;
+        [SerializeField] private Toggle sfxToggle;
+        [SerializeField] private Toggle vfxToggle;
 
         private static AppFlowController instance;
         public static AppFlowController Instance => instance;
@@ -73,10 +74,15 @@ namespace RealityFractures
             if (settingsPanel != null) settingsPanel.SetActive(false);
             if (quitConfirmationPanel != null) quitConfirmationPanel.SetActive(false);
 
-            // Restore sound settings
+            // Restore Sound, SFX, and VFX settings
             bool soundOn = PlayerPrefs.GetInt("RF_SoundEnabled", 1) == 1;
+            bool sfxOn = PlayerPrefs.GetInt("RF_SFXEnabled", 1) == 1;
+            bool vfxHigh = PlayerPrefs.GetInt("RF_VFXHigh", 1) == 1;
+
             AudioListener.pause = !soundOn;
             if (soundToggle != null) soundToggle.isOn = soundOn;
+            if (sfxToggle != null) sfxToggle.isOn = sfxOn;
+            if (vfxToggle != null) vfxToggle.isOn = vfxHigh;
         }
 
         public void LoadARGame()
@@ -113,6 +119,19 @@ namespace RealityFractures
         {
             AudioListener.pause = !isEnabled;
             PlayerPrefs.SetInt("RF_SoundEnabled", isEnabled ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+
+        public void ToggleSFX(bool isEnabled)
+        {
+            PlayerPrefs.SetInt("RF_SFXEnabled", isEnabled ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+
+        public void ToggleVFX(bool isHighQuality)
+        {
+            PlayerPrefs.SetInt("RF_VFXHigh", isHighQuality ? 1 : 0);
+            QualitySettings.SetQualityLevel(isHighQuality ? 2 : 0, true);
             PlayerPrefs.Save();
         }
 
