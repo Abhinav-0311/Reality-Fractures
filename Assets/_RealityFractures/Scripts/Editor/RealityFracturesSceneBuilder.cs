@@ -34,30 +34,36 @@ namespace RealityFractures.EditorTools
         public static void BuildAllScenes()
         {
             SetWorkingDirectoryToProjectRoot();
+
+            // 1. Create and force refresh asset database folders FIRST
             EnsureAssetFolders();
 
+            // 2. Create background texture
             Sprite panelBgSprite = CreatePanelBackgroundTexture();
 
-            CreateSplashScene();
-            CreateMainMenuScene(panelBgSprite);
-            CreateARGameScene(panelBgSprite);
+            // 3. Build each scene individually and write to disk
+            CreateAndSaveSplashScene();
+            CreateAndSaveMainMenuScene(panelBgSprite);
+            CreateAndSaveARGameScene(panelBgSprite);
 
+            // 4. Register in build settings
             RegisterScenesInBuildSettings();
 
+            // 5. Force asset database save & refresh
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
 
-            // Automatically open Main Menu scene in the Unity Editor
+            // 6. Open Main Menu scene in Unity Editor
             EditorSceneManager.OpenScene(MainMenuScenePath, OpenSceneMode.Single);
 
             string splashDiskPath = Path.Combine(Application.dataPath, "_RealityFractures/Scenes/0_Splash.unity");
             string menuDiskPath = Path.Combine(Application.dataPath, "_RealityFractures/Scenes/1_MainMenu.unity");
             string arDiskPath = Path.Combine(Application.dataPath, "_RealityFractures/Scenes/2_ARGame.unity");
 
-            Debug.Log($"[RealityFracturesSceneBuilder] Successfully built all 3 scenes!\n" +
-                      $"0_Splash Exists: {File.Exists(splashDiskPath)} ({splashDiskPath})\n" +
-                      $"1_MainMenu Exists: {File.Exists(menuDiskPath)} ({menuDiskPath})\n" +
-                      $"2_ARGame Exists: {File.Exists(arDiskPath)} ({arDiskPath})");
+            Debug.Log($"[RealityFracturesSceneBuilder] Completed BuildAllScenes!\n" +
+                      $"0_Splash.unity Exists: {File.Exists(splashDiskPath)} ({splashDiskPath})\n" +
+                      $"1_MainMenu.unity Exists: {File.Exists(menuDiskPath)} ({menuDiskPath})\n" +
+                      $"2_ARGame.unity Exists: {File.Exists(arDiskPath)} ({arDiskPath})");
         }
 
         private static void SetWorkingDirectoryToProjectRoot()
@@ -68,11 +74,13 @@ namespace RealityFractures.EditorTools
 
         private static void EnsureAssetFolders()
         {
-            string baseFolder = Application.dataPath + "/_RealityFractures";
-            EnsurePhysicalFolder(baseFolder);
-            EnsurePhysicalFolder(baseFolder + "/Scenes");
-            EnsurePhysicalFolder(baseFolder + "/Prefabs");
-            EnsurePhysicalFolder(baseFolder + "/Art");
+            string basePhysical = Application.dataPath + "/_RealityFractures";
+            EnsurePhysicalFolder(basePhysical);
+            EnsurePhysicalFolder(basePhysical + "/Scenes");
+            EnsurePhysicalFolder(basePhysical + "/Prefabs");
+            EnsurePhysicalFolder(basePhysical + "/Art");
+
+            AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
 
             if (!AssetDatabase.IsValidFolder("Assets/_RealityFractures"))
             {
@@ -90,7 +98,9 @@ namespace RealityFractures.EditorTools
             {
                 AssetDatabase.CreateFolder("Assets/_RealityFractures", "Art");
             }
-            AssetDatabase.Refresh();
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
         }
 
         private static void EnsurePhysicalFolder(string path)
@@ -105,6 +115,7 @@ namespace RealityFractures.EditorTools
         {
             string relPath = "Assets/_RealityFractures/Art/UI_Panel_BG.png";
             string absPath = Path.Combine(Application.dataPath, "_RealityFractures/Art/UI_Panel_BG.png");
+
             if (!File.Exists(absPath))
             {
                 Texture2D tex = new(256, 256, TextureFormat.RGBA32, false);
@@ -137,7 +148,7 @@ namespace RealityFractures.EditorTools
             return AssetDatabase.LoadAssetAtPath<Sprite>(relPath);
         }
 
-        private static void CreateSplashScene()
+        private static void CreateAndSaveSplashScene()
         {
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
@@ -165,10 +176,10 @@ namespace RealityFractures.EditorTools
             GameObject appFlowObj = new("App Flow Controller");
             appFlowObj.AddComponent<AppFlowController>();
 
-            SaveSceneToDisk(scene, SplashScenePath);
+            SaveSceneAsset(scene, SplashScenePath);
         }
 
-        private static void CreateMainMenuScene(Sprite panelBgSprite)
+        private static void CreateAndSaveMainMenuScene(Sprite panelBgSprite)
         {
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
@@ -244,10 +255,10 @@ namespace RealityFractures.EditorTools
             sfxToggle.onValueChanged.AddListener(appFlow.ToggleSFX);
             vfxToggle.onValueChanged.AddListener(appFlow.ToggleVFX);
 
-            SaveSceneToDisk(scene, MainMenuScenePath);
+            SaveSceneAsset(scene, MainMenuScenePath);
         }
 
-        private static void CreateARGameScene(Sprite panelBgSprite)
+        private static void CreateAndSaveARGameScene(Sprite panelBgSprite)
         {
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
@@ -298,10 +309,10 @@ namespace RealityFractures.EditorTools
             light.intensity = 1.2f;
             lightObject.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
 
-            SaveSceneToDisk(scene, ARGameScenePath);
+            SaveSceneAsset(scene, ARGameScenePath);
         }
 
-        private static void SaveSceneToDisk(Scene scene, string relativePath)
+        private static void SaveSceneAsset(Scene scene, string relativePath)
         {
             EditorSceneManager.MarkSceneDirty(scene);
             bool saved = EditorSceneManager.SaveScene(scene, relativePath, false);
