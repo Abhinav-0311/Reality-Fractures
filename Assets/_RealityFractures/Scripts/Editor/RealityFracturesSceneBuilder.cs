@@ -366,7 +366,6 @@ namespace RealityFractures.EditorTools
             GameObject textObject = new(name);
             textObject.transform.SetParent(parent, false);
             RectTransform rect = textObject.AddComponent<RectTransform>();
-            RectTransformUtility.CalculateRelativeKeyboardBounds(rect);
             rect.anchorMin = new Vector2(0.5f, 0.5f);
             rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.sizeDelta = new Vector2(600f, 50f);
