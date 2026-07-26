@@ -73,6 +73,31 @@ namespace RealityFractures
             }
         }
 
+        public void SelectTimeLayer(TimeLayer layer)
+        {
+            if (CurrentState == RealityFracturesState.Scanning || CurrentState == RealityFracturesState.ReadyToPlace || CurrentState == RealityFracturesState.Stabilized || CurrentState == RealityFracturesState.Complete)
+            {
+                return;
+            }
+
+            switch (layer)
+            {
+                case TimeLayer.Past:
+                    SetState(RealityFracturesState.PastActive);
+                    break;
+                case TimeLayer.Present:
+                    SetState(RealityFracturesState.PresentActive);
+                    break;
+                case TimeLayer.Future:
+                    SetState(RealityFracturesState.FutureActive);
+                    break;
+            }
+        }
+
+        public void SelectPastLayer() => SelectTimeLayer(TimeLayer.Past);
+        public void SelectPresentLayer() => SelectTimeLayer(TimeLayer.Present);
+        public void SelectFutureLayer() => SelectTimeLayer(TimeLayer.Future);
+
         private bool CanCollect(TimeLayer layer)
         {
             return (CurrentState == RealityFracturesState.PastActive && layer == TimeLayer.Past)

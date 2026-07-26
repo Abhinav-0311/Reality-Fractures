@@ -7,6 +7,7 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using UnityEngine.XR.ARFoundation;
 using Unity.XR.CoreUtils;
+using UnityEngine.EventSystems;
 
 namespace RealityFractures.EditorTools
 {
@@ -160,6 +161,23 @@ namespace RealityFractures.EditorTools
             return null;
         }
 
+        private static Sprite LoadSpriteAsset(string relPath)
+        {
+            string absPath = Path.Combine(Application.dataPath, relPath.Substring(7));
+            if (!File.Exists(absPath)) return null;
+
+            AssetDatabase.ImportAsset(relPath, ImportAssetOptions.ForceSynchronousImport);
+            if (AssetImporter.GetAtPath(relPath) is TextureImporter importer)
+            {
+                if (importer.textureType != TextureImporterType.Sprite)
+                {
+                    importer.textureType = TextureImporterType.Sprite;
+                    importer.SaveAndReimport();
+                }
+            }
+            return AssetDatabase.LoadAssetAtPath<Sprite>(relPath);
+        }
+
         private static Sprite CreatePanelBackgroundTexture()
         {
             string relPath = "Assets/_RealityFractures/Art/UI_Panel_BG.png";
@@ -208,10 +226,14 @@ namespace RealityFractures.EditorTools
             cam.backgroundColor = new Color(0.04f, 0.04f, 0.08f, 1f);
             cameraObj.AddComponent<AudioListener>();
 
+            CreateEventSystem();
+
             GameObject canvasObj = new("Splash Canvas");
             Canvas canvas = canvasObj.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvasObj.AddComponent<CanvasScaler>();
+            CanvasScaler scaler = canvasObj.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920, 1080);
             canvasObj.AddComponent<GraphicRaycaster>();
 
             Text title = CreateText("TitleText", canvasObj.transform, new Vector2(0f, 40f), 44, TextAnchor.MiddleCenter);
@@ -239,12 +261,14 @@ namespace RealityFractures.EditorTools
             cam.backgroundColor = new Color(0.06f, 0.07f, 0.12f, 1f);
             cameraObj.AddComponent<AudioListener>();
 
+            CreateEventSystem();
+
             GameObject canvasObj = new("Main Menu Canvas");
             Canvas canvas = canvasObj.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             CanvasScaler scaler = canvasObj.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1080, 1920); // Android vertical portrait resolution
+            scaler.referenceResolution = new Vector2(1920, 1080); // Android horizontal landscape resolution
             canvasObj.AddComponent<GraphicRaycaster>();
 
             // Fullscreen Sci-Fi Artwork Background for Android (.jpg)
@@ -266,22 +290,22 @@ namespace RealityFractures.EditorTools
             }
 
             // Title Header
-            Text title = CreateText("TitleText", canvasObj.transform, new Vector2(0f, 400f), 52, TextAnchor.MiddleCenter);
+            Text title = CreateText("TitleText", canvasObj.transform, new Vector2(0f, 320f), 52, TextAnchor.MiddleCenter);
             title.text = "REALITY FRACTURES";
             title.color = new Color(0.36f, 0.86f, 0.9f, 1f);
 
-            Text subtitle = CreateText("SubtitleText", canvasObj.transform, new Vector2(0f, 330f), 24, TextAnchor.MiddleCenter);
+            Text subtitle = CreateText("SubtitleText", canvasObj.transform, new Vector2(0f, 250f), 24, TextAnchor.MiddleCenter);
             subtitle.text = "Temporal Spatial AR Prototype";
             subtitle.color = new Color(0.7f, 0.85f, 0.95f, 0.9f);
 
             // Main Menu Panel
-            GameObject mainPanel = CreatePanel("Main Menu Panel", canvasObj.transform, panelBgSprite, new Vector2(480f, 400f));
+            GameObject mainPanel = CreatePanel("Main Menu Panel", canvasObj.transform, panelBgSprite, new Vector2(560f, 420f));
             Button startBtn = CreateButton("Start Game Button", mainPanel.transform, new Vector2(0f, 80f), "START NEW FRACTURE");
             Button settingsBtn = CreateButton("Settings Button", mainPanel.transform, new Vector2(0f, -10f), "SETTINGS");
             Button quitBtn = CreateButton("Quit Button", mainPanel.transform, new Vector2(0f, -100f), "QUIT");
 
             // Settings Panel
-            GameObject settingsPanel = CreatePanel("Settings Panel", canvasObj.transform, panelBgSprite, new Vector2(560f, 520f));
+            GameObject settingsPanel = CreatePanel("Settings Panel", canvasObj.transform, panelBgSprite, new Vector2(640f, 520f));
             settingsPanel.SetActive(false);
             CreateText("SettingsTitle", settingsPanel.transform, new Vector2(0f, 200f), 32, TextAnchor.MiddleCenter).text = "SETTINGS";
             
@@ -307,12 +331,24 @@ namespace RealityFractures.EditorTools
             serializedFlow.FindProperty("mainMenuPanel").objectReferenceValue = mainPanel;
             serializedFlow.FindProperty("settingsPanel").objectReferenceValue = settingsPanel;
             serializedFlow.FindProperty("quitConfirmationPanel").objectReferenceValue = quitPanel;
+            serializedFlow.FindProperty("startButton").objectReferenceValue = startBtn;
+            serializedFlow.FindProperty("settingsButton").objectReferenceValue = settingsBtn;
+            serializedFlow.FindProperty("quitButton").objectReferenceValue = quitBtn;
+            serializedFlow.FindProperty("closeSettingsButton").objectReferenceValue = closeSettingsBtn;
+            serializedFlow.FindProperty("resetProgressButton").objectReferenceValue = resetProgressBtn;
+            serializedFlow.FindProperty("confirmQuitButton").objectReferenceValue = confirmQuitBtn;
+            serializedFlow.FindProperty("cancelQuitButton").objectReferenceValue = cancelQuitBtn;
             serializedFlow.FindProperty("soundToggle").objectReferenceValue = soundToggle;
             serializedFlow.FindProperty("sfxToggle").objectReferenceValue = sfxToggle;
             serializedFlow.FindProperty("vfxToggle").objectReferenceValue = vfxToggle;
+            Text startBtnText = startBtn.GetComponentInChildren<Text>();
+            if (startBtnText != null)
+            {
+                serializedFlow.FindProperty("startButtonLabel").objectReferenceValue = startBtnText;
+            }
             serializedFlow.ApplyModifiedPropertiesWithoutUndo();
 
-            // Wire Buttons
+            // Wire Buttons (Runtime + Persistent Editor Listeners)
             startBtn.onClick.AddListener(appFlow.LoadARGame);
             settingsBtn.onClick.AddListener(appFlow.OpenSettings);
             closeSettingsBtn.onClick.AddListener(appFlow.CloseSettings);
@@ -323,6 +359,14 @@ namespace RealityFractures.EditorTools
             soundToggle.onValueChanged.AddListener(appFlow.ToggleSound);
             sfxToggle.onValueChanged.AddListener(appFlow.ToggleSFX);
             vfxToggle.onValueChanged.AddListener(appFlow.ToggleVFX);
+
+            UnityEditor.Events.UnityEventTools.AddPersistentListener(startBtn.onClick, appFlow.LoadARGame);
+            UnityEditor.Events.UnityEventTools.AddPersistentListener(settingsBtn.onClick, appFlow.OpenSettings);
+            UnityEditor.Events.UnityEventTools.AddPersistentListener(closeSettingsBtn.onClick, appFlow.CloseSettings);
+            UnityEditor.Events.UnityEventTools.AddPersistentListener(resetProgressBtn.onClick, appFlow.ResetProgress);
+            UnityEditor.Events.UnityEventTools.AddPersistentListener(quitBtn.onClick, appFlow.OpenQuitConfirmation);
+            UnityEditor.Events.UnityEventTools.AddPersistentListener(cancelQuitBtn.onClick, appFlow.CloseQuitConfirmation);
+            UnityEditor.Events.UnityEventTools.AddPersistentListener(confirmQuitBtn.onClick, appFlow.ConfirmQuitApp);
 
             SaveSceneAsset(scene, MainMenuScenePath);
         }
@@ -351,10 +395,21 @@ namespace RealityFractures.EditorTools
 
             ARPlaneManager planeManager = xrOriginObject.AddComponent<ARPlaneManager>();
             ARRaycastManager raycastManager = xrOriginObject.AddComponent<ARRaycastManager>();
-            xrOriginObject.AddComponent<ARAnchorManager>();
+            ARAnchorManager anchorManager = xrOriginObject.AddComponent<ARAnchorManager>();
 
-            GameObject placementIndicator = CreatePlacementIndicator();
+            GameObject planeVisualPrototype = CreatePlaneVisual();
+            GameObject planeVisualPrefab = PrefabUtility.SaveAsPrefabAsset(planeVisualPrototype, "Assets/_RealityFractures/Prefabs/PlaneVisual.prefab");
+            Object.DestroyImmediate(planeVisualPrototype);
+            planeManager.planePrefab = planeVisualPrefab;
+
+            GameObject indicatorPrototype = CreatePlacementIndicator();
+            GameObject placementIndicatorPrefab = PrefabUtility.SaveAsPrefabAsset(indicatorPrototype, "Assets/_RealityFractures/Prefabs/PlacementIndicator.prefab");
+            Object.DestroyImmediate(indicatorPrototype);
+            GameObject placementIndicator = (GameObject)PrefabUtility.InstantiatePrefab(placementIndicatorPrefab);
+            placementIndicator.name = "Placement Indicator";
             placementIndicator.SetActive(false);
+
+            CreateEnergyFragmentPrefab();
 
             GameObject fracturePrototype = CreateFracturePrototype();
             GameObject fracturePrefab = PrefabUtility.SaveAsPrefabAsset(fracturePrototype, "Assets/_RealityFractures/Prefabs/FractureRoot.prefab");
@@ -365,6 +420,7 @@ namespace RealityFractures.EditorTools
             SerializedObject placementSerialized = new(placement);
             placementSerialized.FindProperty("raycastManager").objectReferenceValue = raycastManager;
             placementSerialized.FindProperty("planeManager").objectReferenceValue = planeManager;
+            placementSerialized.FindProperty("anchorManager").objectReferenceValue = anchorManager;
             placementSerialized.FindProperty("placementIndicator").objectReferenceValue = placementIndicator;
             placementSerialized.FindProperty("fracturePrefab").objectReferenceValue = fracturePrefab;
             placementSerialized.FindProperty("gameState").objectReferenceValue = stateController;
@@ -401,19 +457,53 @@ namespace RealityFractures.EditorTools
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             CanvasScaler scaler = canvasObject.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1080, 1920);
+            scaler.referenceResolution = new Vector2(1920, 1080);
             canvasObject.AddComponent<GraphicRaycaster>();
 
-            Text status = CreateText("Status", canvasObject.transform, new Vector2(0f, -120f), 32, TextAnchor.MiddleCenter);
-            Text progress = CreateText("Progress", canvasObject.transform, new Vector2(0f, -180f), 24, TextAnchor.MiddleCenter);
+            CreateEventSystem();
+
+            Text status = CreateText("Status", canvasObject.transform, new Vector2(0f, -70f), 28, TextAnchor.MiddleCenter);
+            Text progress = CreateText("Progress", canvasObject.transform, new Vector2(0f, -130f), 22, TextAnchor.MiddleCenter);
+            SetUIAnchor(status.gameObject, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -40f));
+            SetUIAnchor(progress.gameObject, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -95f));
+
+            // Time-Layer Shifting Buttons (Anchored to Bottom Left, Center, Right so they NEVER get cut off on mobile safe areas)
+            Button pastBtn = CreateButton("Past Button", canvasObject.transform, Vector2.zero, "◄ PAST (AMBER)", new Vector2(300f, 65f));
+            Button presentBtn = CreateButton("Present Button", canvasObject.transform, Vector2.zero, "PRESENT (EMERALD)", new Vector2(300f, 65f));
+            Button futureBtn = CreateButton("Future Button", canvasObject.transform, Vector2.zero, "FUTURE (CYAN) ►", new Vector2(300f, 65f));
+            SetUIAnchor(pastBtn.gameObject, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(40f, 35f));
+            SetUIAnchor(presentBtn.gameObject, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 35f));
+            SetUIAnchor(futureBtn.gameObject, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-40f, 35f));
+
+            pastBtn.onClick.AddListener(stateController.SelectPastLayer);
+            presentBtn.onClick.AddListener(stateController.SelectPresentLayer);
+            futureBtn.onClick.AddListener(stateController.SelectFutureLayer);
+
+            // HUD Buttons
+            Button pauseBtn = CreateButton("Pause Button", canvasObject.transform, Vector2.zero, "|| PAUSE", new Vector2(160f, 60f));
+            SetUIAnchor(pauseBtn.gameObject, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-40f, -40f));
+
+            Button zoomInBtn = CreateButton("Zoom In Button", canvasObject.transform, Vector2.zero, "+ ZOOM IN", new Vector2(170f, 55f));
+            Button zoomOutBtn = CreateButton("Zoom Out Button", canvasObject.transform, Vector2.zero, "- ZOOM OUT", new Vector2(170f, 55f));
+            SetUIAnchor(zoomInBtn.gameObject, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(30f, -30f));
+            SetUIAnchor(zoomOutBtn.gameObject, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(30f, -95f));
 
             // Pause Overlay Panel
-            GameObject pausePanel = CreatePanel("Pause Panel", canvasObject.transform, panelBgSprite, new Vector2(480f, 380f));
+            GameObject pausePanel = CreatePanel("Pause Panel", canvasObject.transform, panelBgSprite, new Vector2(560f, 440f));
             pausePanel.SetActive(false);
-            CreateText("PauseTitle", pausePanel.transform, new Vector2(0f, 130f), 36, TextAnchor.MiddleCenter).text = "GAME PAUSED";
+            CreateText("PauseTitle", pausePanel.transform, new Vector2(0f, 140f), 36, TextAnchor.MiddleCenter).text = "GAME PAUSED";
             Button resumeBtn = CreateButton("Resume Button", pausePanel.transform, new Vector2(0f, 50f), "RESUME");
-            Button restartBtn = CreateButton("Restart Button", pausePanel.transform, new Vector2(0f, -30f), "RESTART");
+            Button settingsBtn = CreateButton("Settings Button", pausePanel.transform, new Vector2(0f, -30f), "SETTINGS");
             Button mainMenuBtn = CreateButton("Main Menu Button", pausePanel.transform, new Vector2(0f, -110f), "MAIN MENU");
+
+            // In-Game Settings Panel
+            GameObject settingsPanel = CreatePanel("InGame Settings Panel", canvasObject.transform, panelBgSprite, new Vector2(600f, 460f));
+            settingsPanel.SetActive(false);
+            CreateText("SettingsTitle", settingsPanel.transform, new Vector2(0f, 160f), 32, TextAnchor.MiddleCenter).text = "SETTINGS";
+            CreateToggle("Sound Toggle", settingsPanel.transform, new Vector2(0f, 80f), "Master Sound Effects");
+            CreateToggle("SFX Toggle", settingsPanel.transform, new Vector2(0f, 10f), "Ambient Audio FX");
+            CreateToggle("VFX Toggle", settingsPanel.transform, new Vector2(0f, -60f), "High Quality Visual FX");
+            Button closeSettingsBtn = CreateButton("Close Settings Button", settingsPanel.transform, new Vector2(0f, -150f), "BACK");
 
             MinimalARUIController ui = canvasObject.AddComponent<MinimalARUIController>();
             SerializedObject uiSerialized = new(ui);
@@ -421,11 +511,45 @@ namespace RealityFractures.EditorTools
             uiSerialized.FindProperty("statusText").objectReferenceValue = status;
             uiSerialized.FindProperty("progressText").objectReferenceValue = progress;
             uiSerialized.FindProperty("pausePanel").objectReferenceValue = pausePanel;
+            uiSerialized.FindProperty("inGameSettingsPanel").objectReferenceValue = settingsPanel;
+            uiSerialized.FindProperty("pauseButton").objectReferenceValue = pauseBtn;
+            uiSerialized.FindProperty("resumeButton").objectReferenceValue = resumeBtn;
+            uiSerialized.FindProperty("settingsButton").objectReferenceValue = settingsBtn;
+            uiSerialized.FindProperty("closeSettingsButton").objectReferenceValue = closeSettingsBtn;
+            uiSerialized.FindProperty("zoomInButton").objectReferenceValue = zoomInBtn;
+            uiSerialized.FindProperty("zoomOutButton").objectReferenceValue = zoomOutBtn;
+            uiSerialized.FindProperty("mainMenuButton").objectReferenceValue = mainMenuBtn;
+            uiSerialized.FindProperty("pastButton").objectReferenceValue = pastBtn;
+            uiSerialized.FindProperty("presentButton").objectReferenceValue = presentBtn;
+            uiSerialized.FindProperty("futureButton").objectReferenceValue = futureBtn;
             uiSerialized.ApplyModifiedPropertiesWithoutUndo();
 
+            pauseBtn.onClick.AddListener(ui.TogglePause);
             resumeBtn.onClick.AddListener(ui.ResumeGame);
-            restartBtn.onClick.AddListener(ui.RestartGame);
+            settingsBtn.onClick.AddListener(ui.OpenInGameSettings);
+            closeSettingsBtn.onClick.AddListener(ui.CloseInGameSettings);
             mainMenuBtn.onClick.AddListener(ui.ReturnToMainMenu);
+
+            UnityEditor.Events.UnityEventTools.AddPersistentListener(pauseBtn.onClick, ui.TogglePause);
+            UnityEditor.Events.UnityEventTools.AddPersistentListener(resumeBtn.onClick, ui.ResumeGame);
+            UnityEditor.Events.UnityEventTools.AddPersistentListener(settingsBtn.onClick, ui.OpenInGameSettings);
+            UnityEditor.Events.UnityEventTools.AddPersistentListener(closeSettingsBtn.onClick, ui.CloseInGameSettings);
+            UnityEditor.Events.UnityEventTools.AddPersistentListener(mainMenuBtn.onClick, ui.ReturnToMainMenu);
+            UnityEditor.Events.UnityEventTools.AddPersistentListener(pastBtn.onClick, stateController.SelectPastLayer);
+            UnityEditor.Events.UnityEventTools.AddPersistentListener(presentBtn.onClick, stateController.SelectPresentLayer);
+            UnityEditor.Events.UnityEventTools.AddPersistentListener(futureBtn.onClick, stateController.SelectFutureLayer);
+        }
+
+        private static void SetUIAnchor(GameObject obj, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 anchoredPosition)
+        {
+            RectTransform rect = obj.GetComponent<RectTransform>();
+            if (rect != null)
+            {
+                rect.anchorMin = anchorMin;
+                rect.anchorMax = anchorMax;
+                rect.pivot = pivot;
+                rect.anchoredPosition = anchoredPosition;
+            }
         }
 
         private static GameObject CreatePlacementIndicator()
@@ -440,18 +564,39 @@ namespace RealityFractures.EditorTools
             return indicator;
         }
 
+        private static GameObject CreatePlaneVisual()
+        {
+            GameObject planeObj = new("PlaneVisual");
+            planeObj.AddComponent<ARPlane>();
+            planeObj.AddComponent<MeshCollider>();
+            planeObj.AddComponent<MeshFilter>();
+            MeshRenderer renderer = planeObj.AddComponent<MeshRenderer>();
+            planeObj.AddComponent<ARPlaneMeshVisualizer>();
+
+            renderer.sharedMaterial = CreateMaterial("RF_PlaneVisual_Mat", new Color(0.2f, 0.8f, 0.9f, 0.25f));
+            return planeObj;
+        }
+
+        private static void CreateEnergyFragmentPrefab()
+        {
+            GameObject fragmentPrototype = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            fragmentPrototype.name = "EnergyFragment";
+            fragmentPrototype.transform.localScale = Vector3.one * 0.07f;
+            fragmentPrototype.GetComponent<Renderer>().sharedMaterial = CreateMaterial("RF_Fragment_Base", new Color(0.9f, 0.9f, 1f, 1f));
+            fragmentPrototype.AddComponent<CollectibleFragment>();
+            PrefabUtility.SaveAsPrefabAsset(fragmentPrototype, "Assets/_RealityFractures/Prefabs/EnergyFragment.prefab");
+            Object.DestroyImmediate(fragmentPrototype);
+        }
+
         private static GameObject CreateFracturePrototype()
         {
             GameObject root = new("FractureRoot");
-            root.transform.localScale = Vector3.one * 0.35f;
+            root.transform.localScale = Vector3.one * 0.95f;
 
             FractureWorldController worldController = root.AddComponent<FractureWorldController>();
-
-            Material frameMaterial = CreateMaterial("RF_Frame_DarkStone", new Color(0.08f, 0.075f, 0.07f, 1f));
-            CreateFrameSegment(root.transform, "Frame North", new Vector3(0f, 0.05f, 0.28f), new Vector3(0.62f, 0.04f, 0.045f), frameMaterial);
-            CreateFrameSegment(root.transform, "Frame South", new Vector3(0f, 0.05f, -0.28f), new Vector3(0.62f, 0.04f, 0.045f), frameMaterial);
-            CreateFrameSegment(root.transform, "Frame East", new Vector3(0.28f, 0.05f, 0f), new Vector3(0.045f, 0.04f, 0.62f), frameMaterial);
-            CreateFrameSegment(root.transform, "Frame West", new Vector3(-0.28f, 0.05f, 0f), new Vector3(0.045f, 0.04f, 0.62f), frameMaterial);
+            root.AddComponent<TemporalPuzzleController>();
+            root.AddComponent<ProceduralAudioFX>();
+            root.AddComponent<AnomalyTouchController>();
 
             GameObject past = CreateWorldLayer("Past World", new Color(0.9f, 0.56f, 0.22f, 1f), TimeLayer.Past);
             GameObject present = CreateWorldLayer("Present World", new Color(0.35f, 0.68f, 0.45f, 1f), TimeLayer.Present);
@@ -474,33 +619,84 @@ namespace RealityFractures.EditorTools
         private static GameObject CreateWorldLayer(string name, Color color, TimeLayer layer)
         {
             GameObject layerRoot = new(name);
-            Material material = CreateMaterial("RF_" + name.Replace(" ", "_"), color);
 
-            GameObject platform = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            platform.name = "Miniature Platform";
-            platform.transform.SetParent(layerRoot.transform, false);
-            platform.transform.localScale = new Vector3(0.45f, 0.035f, 0.45f);
-            platform.GetComponent<Renderer>().sharedMaterial = material;
+            string meshyFbxPath = layer switch
+            {
+                TimeLayer.Past => "Assets/_RealityFractures/Art/Models/Meshy/Past/Meshy_AI_Astral_Obelisk_on_a_R_0726091509_texture_fbx/Meshy_AI_Astral_Obelisk_on_a_R_0726091509_texture.fbx",
+                TimeLayer.Present => "Assets/_RealityFractures/Art/Models/Meshy/Present/Meshy_AI_Emerald_Quantum_Core_0726092051_texture_fbx/Meshy_AI_Emerald_Quantum_Core_0726092051_texture.fbx",
+                _ => "Assets/_RealityFractures/Art/Models/Meshy/Future/Meshy_AI_Azure_Crystal_Citadel_0726092821_texture_fbx/Meshy_AI_Azure_Crystal_Citadel_0726092821_texture.fbx"
+            };
 
-            GameObject shard = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            shard.name = "Time Shard";
-            shard.transform.SetParent(layerRoot.transform, false);
-            shard.transform.localPosition = new Vector3(0f, 0.22f, 0f);
-            shard.transform.localRotation = Quaternion.Euler(0f, 45f, 25f);
-            shard.transform.localScale = new Vector3(0.08f, 0.18f, 0.08f);
-            shard.GetComponent<Renderer>().sharedMaterial = material;
+            string meshyTexPath = layer switch
+            {
+                TimeLayer.Past => "Assets/_RealityFractures/Art/Models/Meshy/Past/Meshy_AI_Astral_Obelisk_on_a_R_0726091509_texture_fbx/Meshy_AI_Astral_Obelisk_on_a_R_0726091509_texture.png",
+                TimeLayer.Present => "Assets/_RealityFractures/Art/Models/Meshy/Present/Meshy_AI_Emerald_Quantum_Core_0726092051_texture_fbx/Meshy_AI_Emerald_Quantum_Core_0726092051_texture.png",
+                _ => "Assets/_RealityFractures/Art/Models/Meshy/Future/Meshy_AI_Azure_Crystal_Citadel_0726092821_texture_fbx/Meshy_AI_Azure_Crystal_Citadel_0726092821_texture.png"
+            };
+
+            GameObject meshyPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(meshyFbxPath);
+            Texture2D meshyTex = AssetDatabase.LoadAssetAtPath<Texture2D>(meshyTexPath);
+
+            if (meshyPrefab != null)
+            {
+                GameObject meshyInst = (GameObject)PrefabUtility.InstantiatePrefab(meshyPrefab, layerRoot.transform);
+                meshyInst.name = "Meshy " + layer + " Asset";
+                meshyInst.transform.localPosition = Vector3.zero;
+                meshyInst.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
+                meshyInst.transform.localScale = Vector3.one * 15.0f;
+
+                Renderer[] renderers = meshyInst.GetComponentsInChildren<Renderer>(true);
+                foreach (Renderer r in renderers)
+                {
+                    Material m = CreateMaterial("RF_Meshy_" + layer + "_" + r.name, Color.white);
+                    m.color = Color.white;
+                    if (meshyTex != null)
+                    {
+                        m.mainTexture = meshyTex;
+                    }
+                    r.sharedMaterial = m;
+                    if (r.gameObject.GetComponent<Collider>() == null)
+                    {
+                        r.gameObject.AddComponent<MeshCollider>().convex = true;
+                    }
+                }
+
+                if (layer == TimeLayer.Past)
+                {
+                    meshyInst.AddComponent<TemporalLever>();
+                }
+                else if (layer == TimeLayer.Present)
+                {
+                    meshyInst.AddComponent<PresentChronoDevice>();
+                }
+                else if (layer == TimeLayer.Future)
+                {
+                    meshyInst.AddComponent<CyberneticTerminal>();
+                }
+            }
 
             GameObject fragment = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             fragment.name = layer + " Fragment";
             fragment.transform.SetParent(layerRoot.transform, false);
-            fragment.transform.localPosition = new Vector3(0.22f, 0.18f, 0.08f);
-            fragment.transform.localScale = Vector3.one * 0.07f;
+            fragment.transform.localPosition = new Vector3(0f, 0.04f, -0.055f);
+            fragment.transform.localScale = Vector3.one * 0.035f;
             fragment.GetComponent<Renderer>().sharedMaterial = CreateMaterial("RF_" + layer + "_Fragment", Color.Lerp(color, Color.white, 0.35f));
 
             CollectibleFragment collectible = fragment.AddComponent<CollectibleFragment>();
             SerializedObject collectibleSerialized = new(collectible);
             collectibleSerialized.FindProperty("layer").enumValueIndex = (int)layer;
             collectibleSerialized.ApplyModifiedPropertiesWithoutUndo();
+
+            GameObject barrierObj = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            barrierObj.name = layer + " Forcefield Barrier";
+            barrierObj.transform.SetParent(layerRoot.transform, false);
+            barrierObj.transform.localPosition = new Vector3(0f, 0.04f, -0.055f);
+            barrierObj.transform.localScale = Vector3.one * 0.052f;
+            barrierObj.GetComponent<Renderer>().sharedMaterial = CreateMaterial("RF_" + layer + "_Barrier_Mat", new Color(color.r, color.g, color.b, 0.45f));
+            TemporalBarrier barrier = barrierObj.AddComponent<TemporalBarrier>();
+            SerializedObject barrierSerialized = new(barrier);
+            barrierSerialized.FindProperty("protectedLayer").enumValueIndex = (int)layer;
+            barrierSerialized.ApplyModifiedPropertiesWithoutUndo();
 
             return layerRoot;
         }
@@ -514,6 +710,66 @@ namespace RealityFractures.EditorTools
             segment.transform.localScale = scale;
             segment.GetComponent<Renderer>().sharedMaterial = material;
             Object.DestroyImmediate(segment.GetComponent<Collider>());
+        }
+
+        private static void CreateWorldLayerDecorations(Transform layerRoot, TimeLayer layer, Color color, Material material)
+        {
+            switch (layer)
+            {
+                case TimeLayer.Past:
+                    // Create 2 ancient temple pillars and ruined arch
+                    CreateDecorationCube("TemplePillarLeft", layerRoot, new Vector3(-0.25f, 0.15f, -0.1f), new Vector3(0.06f, 0.3f, 0.06f), material);
+                    CreateDecorationCube("TemplePillarRight", layerRoot, new Vector3(0.25f, 0.15f, -0.1f), new Vector3(0.06f, 0.3f, 0.06f), material);
+                    CreateDecorationCube("FallenArch", layerRoot, new Vector3(0f, 0.02f, -0.15f), new Vector3(0.4f, 0.04f, 0.08f), material);
+                    break;
+                case TimeLayer.Present:
+                    // Create floating shattered debris
+                    CreateDecorationCube("Debris1", layerRoot, new Vector3(-0.2f, 0.12f, 0.15f), new Vector3(0.07f, 0.07f, 0.07f), material, Quaternion.Euler(15f, 45f, 10f));
+                    CreateDecorationCube("Debris2", layerRoot, new Vector3(0.18f, 0.25f, -0.12f), new Vector3(0.05f, 0.09f, 0.06f), material, Quaternion.Euler(-20f, 30f, 45f));
+                    CreateDecorationCube("Debris3", layerRoot, new Vector3(-0.1f, 0.32f, -0.18f), new Vector3(0.06f, 0.05f, 0.08f), material, Quaternion.Euler(60f, 10f, -15f));
+                    break;
+                case TimeLayer.Future:
+                    // Create cybernetic containment obelisks
+                    CreateDecorationCube("ContainmentObelisk1", layerRoot, new Vector3(-0.22f, 0.18f, 0.22f), new Vector3(0.04f, 0.36f, 0.04f), material);
+                    CreateDecorationCube("ContainmentObelisk2", layerRoot, new Vector3(0.22f, 0.18f, 0.22f), new Vector3(0.04f, 0.36f, 0.04f), material);
+                    CreateDecorationCube("ContainmentObelisk3", layerRoot, new Vector3(0f, 0.18f, -0.28f), new Vector3(0.04f, 0.36f, 0.04f), material);
+                    break;
+            }
+        }
+
+        private static void CreateDecorationCube(string name, Transform parent, Vector3 pos, Vector3 scale, Material mat, Quaternion rot = default)
+        {
+            GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            cube.name = name;
+            cube.transform.SetParent(parent, false);
+            cube.transform.localPosition = pos;
+            cube.transform.localRotation = rot == default ? Quaternion.identity : rot;
+            cube.transform.localScale = scale;
+            cube.GetComponent<Renderer>().sharedMaterial = mat;
+            Object.DestroyImmediate(cube.GetComponent<Collider>());
+        }
+
+        private static void CreateEventSystem()
+        {
+            GameObject eventSystemObj = new("EventSystem");
+            eventSystemObj.AddComponent<EventSystem>();
+
+            bool addedNewModule = false;
+            foreach (var assembly in System.AppDomain.CurrentDomain.GetAssemblies())
+            {
+                System.Type modType = assembly.GetType("UnityEngine.InputSystem.UI.InputSystemUIInputModule");
+                if (modType != null)
+                {
+                    eventSystemObj.AddComponent(modType);
+                    addedNewModule = true;
+                    break;
+                }
+            }
+
+            if (!addedNewModule)
+            {
+                eventSystemObj.AddComponent<StandaloneInputModule>();
+            }
         }
 
         private static GameObject CreatePanel(string name, Transform parent, Sprite bgSprite, Vector2 size)
@@ -536,12 +792,12 @@ namespace RealityFractures.EditorTools
             return panelObj;
         }
 
-        private static Button CreateButton(string name, Transform parent, Vector2 anchoredPos, string labelText)
+        private static Button CreateButton(string name, Transform parent, Vector2 anchoredPos, string labelText, Vector2 customSize = default)
         {
             GameObject buttonObj = new(name);
             buttonObj.transform.SetParent(parent, false);
             RectTransform rect = buttonObj.AddComponent<RectTransform>();
-            rect.sizeDelta = new Vector2(360f, 65f);
+            rect.sizeDelta = customSize == default ? new Vector2(360f, 65f) : customSize;
             rect.anchoredPosition = anchoredPos;
 
             Image img = buttonObj.AddComponent<Image>();
@@ -593,14 +849,31 @@ namespace RealityFractures.EditorTools
 
         private static Material CreateMaterial(string name, Color color)
         {
-            Shader shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard") ?? Shader.Find("Unlit/Color");
+            EnsureAssetFolders();
+            string matPath = $"Assets/_RealityFractures/Materials/{name}.mat";
+            Shader shader = Shader.Find("Standard")
+                ?? Shader.Find("Legacy Shaders/Diffuse")
+                ?? Shader.Find("Mobile/Diffuse")
+                ?? Shader.Find("Unlit/Color");
+
+            Material existing = AssetDatabase.LoadAssetAtPath<Material>(matPath);
+            if (existing != null)
+            {
+                existing.shader = shader;
+                existing.color = color;
+                if (existing.HasProperty("_BaseColor")) existing.SetColor("_BaseColor", color);
+                if (existing.HasProperty("_Color")) existing.SetColor("_Color", color);
+                EditorUtility.SetDirty(existing);
+                return existing;
+            }
+
             Material material = new(shader);
             material.name = name;
             material.color = color;
-            if (material.HasProperty("_BaseColor"))
-            {
-                material.SetColor("_BaseColor", color);
-            }
+            if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", color);
+            if (material.HasProperty("_Color")) material.SetColor("_Color", color);
+
+            AssetDatabase.CreateAsset(material, matPath);
             return material;
         }
 

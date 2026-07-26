@@ -18,25 +18,27 @@ namespace RealityFractures
         [SerializeField] private GameObject settingsPanel;
         [SerializeField] private GameObject quitConfirmationPanel;
 
+        [Header("Main Menu Buttons")]
+        [SerializeField] private Button startButton;
+        [SerializeField] private Button settingsButton;
+        [SerializeField] private Button quitButton;
+        [SerializeField] private Button closeSettingsButton;
+        [SerializeField] private Button resetProgressButton;
+        [SerializeField] private Button confirmQuitButton;
+        [SerializeField] private Button cancelQuitButton;
+
         [Header("Settings Controls")]
         [SerializeField] private Toggle soundToggle;
         [SerializeField] private Toggle sfxToggle;
         [SerializeField] private Toggle vfxToggle;
+        [SerializeField] private Text startButtonLabel;
 
         private static AppFlowController instance;
         public static AppFlowController Instance => instance;
 
         private void Awake()
         {
-            if (instance == null)
-            {
-                instance = this;
-            }
-            else if (instance != this)
-            {
-                Destroy(gameObject);
-                return;
-            }
+            instance = this;
         }
 
         private void Start()
@@ -74,6 +76,63 @@ namespace RealityFractures
             if (settingsPanel != null) settingsPanel.SetActive(false);
             if (quitConfirmationPanel != null) quitConfirmationPanel.SetActive(false);
 
+            if (startButton != null)
+            {
+                startButton.onClick.RemoveAllListeners();
+                startButton.onClick.AddListener(LoadARGame);
+            }
+            if (settingsButton != null)
+            {
+                settingsButton.onClick.RemoveAllListeners();
+                settingsButton.onClick.AddListener(OpenSettings);
+            }
+            if (quitButton != null)
+            {
+                quitButton.onClick.RemoveAllListeners();
+                quitButton.onClick.AddListener(OpenQuitConfirmation);
+            }
+            if (closeSettingsButton != null)
+            {
+                closeSettingsButton.onClick.RemoveAllListeners();
+                closeSettingsButton.onClick.AddListener(CloseSettings);
+            }
+            if (resetProgressButton != null)
+            {
+                resetProgressButton.onClick.RemoveAllListeners();
+                resetProgressButton.onClick.AddListener(ResetProgress);
+            }
+            if (confirmQuitButton != null)
+            {
+                confirmQuitButton.onClick.RemoveAllListeners();
+                confirmQuitButton.onClick.AddListener(ConfirmQuitApp);
+            }
+            if (cancelQuitButton != null)
+            {
+                cancelQuitButton.onClick.RemoveAllListeners();
+                cancelQuitButton.onClick.AddListener(CloseQuitConfirmation);
+            }
+            if (soundToggle != null)
+            {
+                soundToggle.onValueChanged.RemoveAllListeners();
+                soundToggle.onValueChanged.AddListener(ToggleSound);
+            }
+            if (sfxToggle != null)
+            {
+                sfxToggle.onValueChanged.RemoveAllListeners();
+                sfxToggle.onValueChanged.AddListener(ToggleSFX);
+            }
+            if (vfxToggle != null)
+            {
+                vfxToggle.onValueChanged.RemoveAllListeners();
+                vfxToggle.onValueChanged.AddListener(ToggleVFX);
+            }
+
+            bool hasProgress = PlayerPrefs.GetInt("RF_FracturePlaced", 0) == 1;
+            if (startButtonLabel != null)
+            {
+                startButtonLabel.text = hasProgress ? "CONTINUE FRACTURE" : "START NEW FRACTURE";
+            }
+
             // Restore Sound, SFX, and VFX settings
             bool soundOn = PlayerPrefs.GetInt("RF_SoundEnabled", 1) == 1;
             bool sfxOn = PlayerPrefs.GetInt("RF_SFXEnabled", 1) == 1;
@@ -87,12 +146,21 @@ namespace RealityFractures
 
         public void LoadARGame()
         {
-            SceneManager.LoadScene(arGameSceneName);
+            StartCoroutine(LoadSceneAsync(arGameSceneName));
         }
 
         public void LoadMainMenu()
         {
-            SceneManager.LoadScene(mainMenuSceneName);
+            StartCoroutine(LoadSceneAsync(mainMenuSceneName));
+        }
+
+        private IEnumerator LoadSceneAsync(string sceneName)
+        {
+            AsyncOperation op = SceneManager.LoadSceneAsync(sceneName);
+            while (!op.isDone)
+            {
+                yield return null;
+            }
         }
 
         public void OpenSettings()

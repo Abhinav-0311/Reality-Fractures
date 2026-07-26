@@ -74,6 +74,11 @@ namespace RealityFractures
         {
             SetActiveLayer(activeWorld);
 
+            Color waveColor = activeWorld == pastWorld ? new Color(0.95f, 0.7f, 0.2f) :
+                              activeWorld == presentWorld ? new Color(0.2f, 0.95f, 0.5f) :
+                              new Color(0.2f, 0.75f, 1.0f);
+            TemporalVFXHelper.SpawnEnergyWave(transform.position, waveColor);
+
             if (transitionEffect != null)
             {
                 transitionEffect.Play();

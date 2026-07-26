@@ -17,48 +17,178 @@ namespace RealityFractures
         [SerializeField] private GameObject pausePanel;
         [SerializeField] private GameObject inGameSettingsPanel;
 
+        [Header("AR HUD & Pause Buttons")]
+        [SerializeField] private Button pauseButton;
+        [SerializeField] private Button resumeButton;
+        [SerializeField] private Button settingsButton;
+        [SerializeField] private Button closeSettingsButton;
+        [SerializeField] private Button zoomInButton;
+        [SerializeField] private Button zoomOutButton;
+        [SerializeField] private Button restartButton;
+        [SerializeField] private Button mainMenuButton;
+        [SerializeField] private Button pastButton;
+        [SerializeField] private Button presentButton;
+        [SerializeField] private Button futureButton;
+
+        [SerializeField] private ARPlacementController placementController;
+
         private void Reset()
         {
             gameState = FindFirstObjectByType<GameStateController>();
+            placementController = FindFirstObjectByType<ARPlacementController>();
         }
 
         private void Start()
         {
+            if (placementController == null)
+            {
+                placementController = FindFirstObjectByType<ARPlacementController>();
+            }
+
             if (pausePanel != null) pausePanel.SetActive(false);
             if (inGameSettingsPanel != null) inGameSettingsPanel.SetActive(false);
+
+            if (zoomInButton != null && placementController != null)
+            {
+                zoomInButton.onClick.RemoveAllListeners();
+                zoomInButton.onClick.AddListener(placementController.ZoomIn);
+            }
+            if (zoomOutButton != null && placementController != null)
+            {
+                zoomOutButton.onClick.RemoveAllListeners();
+                zoomOutButton.onClick.AddListener(placementController.ZoomOut);
+            }
+
+            if (pauseButton != null)
+            {
+                pauseButton.onClick.RemoveAllListeners();
+                pauseButton.onClick.AddListener(TogglePause);
+            }
+            if (resumeButton != null)
+            {
+                resumeButton.onClick.RemoveAllListeners();
+                resumeButton.onClick.AddListener(ResumeGame);
+            }
+            if (settingsButton != null)
+            {
+                settingsButton.onClick.RemoveAllListeners();
+                settingsButton.onClick.AddListener(OpenInGameSettings);
+            }
+            if (closeSettingsButton != null)
+            {
+                closeSettingsButton.onClick.RemoveAllListeners();
+                closeSettingsButton.onClick.AddListener(CloseInGameSettings);
+            }
+            if (restartButton != null)
+            {
+                restartButton.onClick.RemoveAllListeners();
+                restartButton.onClick.AddListener(RestartGame);
+            }
+            if (mainMenuButton != null)
+            {
+                mainMenuButton.onClick.RemoveAllListeners();
+                mainMenuButton.onClick.AddListener(ReturnToMainMenu);
+            }
+            if (pastButton != null && gameState != null)
+            {
+                pastButton.onClick.RemoveAllListeners();
+                pastButton.onClick.AddListener(() => {
+                    gameState.SelectPastLayer();
+                    PlayEraSound(TimeLayer.Past);
+                });
+            }
+            if (presentButton != null && gameState != null)
+            {
+                presentButton.onClick.RemoveAllListeners();
+                presentButton.onClick.AddListener(() => {
+                    gameState.SelectPresentLayer();
+                    PlayEraSound(TimeLayer.Present);
+                });
+            }
+            if (futureButton != null && gameState != null)
+            {
+                futureButton.onClick.RemoveAllListeners();
+                futureButton.onClick.AddListener(() => {
+                    gameState.SelectFutureLayer();
+                    PlayEraSound(TimeLayer.Future);
+                });
+            }
+        }
+
+        private void PlayEraSound(TimeLayer layer)
+        {
+            ProceduralAudioFX audio = FindFirstObjectByType<ProceduralAudioFX>();
+            if (audio != null)
+            {
+                audio.PlayTimeShiftSound(layer);
+            }
         }
 
         private void Update()
         {
-            // Android System Back Button in AR Scene toggles Pause Panel
             if (Input.GetKeyDown(KeyCode.Escape))
             {
-                TogglePause();
+                if (inGameSettingsPanel != null && inGameSettingsPanel.activeSelf)
+                {
+                    CloseInGameSettings();
+                }
+                else
+                {
+                    TogglePause();
+                }
+            }
+
+            if (overrideStatusTimer > 0f)
+            {
+                overrideStatusTimer -= Time.deltaTime;
+                if (overrideStatusTimer <= 0f && gameState != null)
+                {
+                    OnStateChanged(gameState.CurrentState);
+                }
             }
         }
 
+        private float overrideStatusTimer = 0f;
+        private TemporalPuzzleController puzzleController;
+
         private void OnEnable()
         {
-            if (gameState == null)
+            if (gameState != null)
             {
-                return;
+                gameState.StateChanged += OnStateChanged;
+                gameState.ProgressChanged += OnProgressChanged;
+                OnStateChanged(gameState.CurrentState);
+                OnProgressChanged(TimeLayer.Past, gameState.CollectedFragments, gameState.TotalFragments);
             }
 
-            gameState.StateChanged += OnStateChanged;
-            gameState.ProgressChanged += OnProgressChanged;
-            OnStateChanged(gameState.CurrentState);
-            OnProgressChanged(TimeLayer.Past, gameState.CollectedFragments, gameState.TotalFragments);
+            puzzleController = FindFirstObjectByType<TemporalPuzzleController>();
+            if (puzzleController != null)
+            {
+                puzzleController.PuzzleStatusUpdated += OnPuzzleStatusUpdated;
+            }
         }
 
         private void OnDisable()
         {
-            if (gameState == null)
+            if (gameState != null)
             {
-                return;
+                gameState.StateChanged -= OnStateChanged;
+                gameState.ProgressChanged -= OnProgressChanged;
             }
 
-            gameState.StateChanged -= OnStateChanged;
-            gameState.ProgressChanged -= OnProgressChanged;
+            if (puzzleController != null)
+            {
+                puzzleController.PuzzleStatusUpdated -= OnPuzzleStatusUpdated;
+            }
+        }
+
+        private void OnPuzzleStatusUpdated(string message)
+        {
+            if (statusText != null)
+            {
+                statusText.text = message;
+                overrideStatusTimer = 4.0f;
+            }
         }
 
         private void OnStateChanged(RealityFracturesState state)
@@ -70,13 +200,13 @@ namespace RealityFractures
 
             statusText.text = state switch
             {
-                RealityFracturesState.Scanning => "Find a flat surface",
-                RealityFracturesState.ReadyToPlace => "Tap to open the fracture",
-                RealityFracturesState.PastActive => "Collect the Past fragment",
-                RealityFracturesState.PresentActive => "Collect the Present fragment",
-                RealityFracturesState.FutureActive => "Collect the Future fragment",
-                RealityFracturesState.Stabilized => "Reality is stabilizing...",
-                RealityFracturesState.Complete => "Reality Stabilized",
+                RealityFracturesState.Scanning => "[CHRONOS-WEAVER] Scan a flat surface to locate the anomaly...",
+                RealityFracturesState.ReadyToPlace => "[CHRONOS-WEAVER] Tap surface to anchor the Reality Fracture",
+                RealityFracturesState.PastActive => "ERA: ANCIENT PAST | Recover the Amber Chrono-Core",
+                RealityFracturesState.PresentActive => "ERA: SHATTERED PRESENT | Recover the Emerald Chrono-Core",
+                RealityFracturesState.FutureActive => "ERA: CRYSTALLINE FUTURE | Recover the Cyan Chrono-Core",
+                RealityFracturesState.Stabilized => "ALL TIMELINES SYNCED | Synchronizing core harmonic...",
+                RealityFracturesState.Complete => "REALITY STABILIZED | Rift successfully sealed!",
                 _ => string.Empty
             };
         }
@@ -97,6 +227,10 @@ namespace RealityFractures
 
             bool willPause = !pausePanel.activeSelf;
             pausePanel.SetActive(willPause);
+            if (willPause)
+            {
+                pausePanel.transform.SetAsLastSibling();
+            }
 
             if (!willPause && inGameSettingsPanel != null)
             {
@@ -117,7 +251,11 @@ namespace RealityFractures
 
         public void OpenInGameSettings()
         {
-            if (inGameSettingsPanel != null) inGameSettingsPanel.SetActive(true);
+            if (inGameSettingsPanel != null)
+            {
+                inGameSettingsPanel.SetActive(true);
+                inGameSettingsPanel.transform.SetAsLastSibling();
+            }
         }
 
         public void CloseInGameSettings()

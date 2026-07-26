@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 namespace RealityFractures
 {
@@ -10,8 +11,13 @@ namespace RealityFractures
         [SerializeField] private ParticleSystem collectEffect;
         [SerializeField] private AudioSource collectAudio;
         [SerializeField] private float proximityCollectDistance = 0f;
+        [SerializeField] private float bobHeight = 0.015f;
+        [SerializeField] private float bobSpeed = 2.5f;
+        [SerializeField] private float rotationSpeed = 35f;
 
+        private Vector3 initialLocalPosition;
         private bool isCollected;
+        private TemporalPuzzleController puzzleController;
 
         public TimeLayer Layer => layer;
 
@@ -21,19 +27,37 @@ namespace RealityFractures
             {
                 gameState = FindFirstObjectByType<GameStateController>();
             }
+            puzzleController = FindFirstObjectByType<TemporalPuzzleController>();
         }
 
         private void Reset()
         {
             gameState = FindFirstObjectByType<GameStateController>();
+            puzzleController = FindFirstObjectByType<TemporalPuzzleController>();
+        }
+
+        private void Start()
+        {
+            initialLocalPosition = transform.localPosition;
+            if (puzzleController == null)
+            {
+                puzzleController = FindFirstObjectByType<TemporalPuzzleController>();
+            }
         }
 
         private void Update()
         {
-            if (!isCollected && WasPrimaryPressReleased() && WasPressedOnThisFragment())
+            if (!isCollected)
             {
-                Collect();
-                return;
+                float newY = initialLocalPosition.y + Mathf.Sin(Time.time * bobSpeed) * bobHeight;
+                transform.localPosition = new Vector3(initialLocalPosition.x, newY, initialLocalPosition.z);
+                transform.Rotate(Vector3.up, rotationSpeed * Time.deltaTime, Space.World);
+
+                if (WasPrimaryPressReleased() && !IsPointerOverUI() && WasPressedOnThisFragment())
+                {
+                    TryCollect();
+                    return;
+                }
             }
 
             if (isCollected || proximityCollectDistance <= 0f || Camera.main == null)
@@ -44,8 +68,18 @@ namespace RealityFractures
             float distance = Vector3.Distance(Camera.main.transform.position, transform.position);
             if (distance <= proximityCollectDistance)
             {
-                Collect();
+                TryCollect();
             }
+        }
+
+        private void TryCollect()
+        {
+            if (puzzleController != null && puzzleController.IsOrbBlocked(layer))
+            {
+                puzzleController.NotifyOrbBlocked(layer);
+                return;
+            }
+            Collect();
         }
 
         public void Collect()
@@ -57,6 +91,12 @@ namespace RealityFractures
 
             isCollected = true;
 
+            Color orbColor = layer == TimeLayer.Past ? new Color(0.95f, 0.75f, 0.2f) :
+                             layer == TimeLayer.Present ? new Color(0.2f, 0.95f, 0.5f) :
+                             new Color(0.2f, 0.75f, 1.0f);
+            TemporalVFXHelper.SpawnParticleBurst(transform.position, orbColor, 45);
+            TemporalVFXHelper.SpawnEnergyWave(transform.position, orbColor);
+
             if (collectEffect != null)
             {
                 collectEffect.transform.SetParent(null, true);
@@ -66,6 +106,11 @@ namespace RealityFractures
             if (collectAudio != null)
             {
                 collectAudio.Play();
+            }
+
+            if (puzzleController != null)
+            {
+                puzzleController.OnOrbCollected(layer);
             }
 
             gameState?.CollectFragment(layer);
@@ -80,21 +125,22 @@ namespace RealityFractures
                 return false;
             }
 
-            Vector2 screenPosition = Input.touchCount > 0
-                ? Input.GetTouch(0).position
-                : (Vector2)Input.mousePosition;
-
-            Ray ray = mainCamera.ScreenPointToRay(screenPosition);
-            RaycastHit[] hits = Physics.RaycastAll(ray);
-            for (int i = 0; i < hits.Length; i++)
+            Ray ray = mainCamera.ScreenPointToRay(GetPointerPosition());
+            if (Physics.Raycast(ray, out RaycastHit hit, 50f))
             {
-                if (hits[i].transform == transform)
-                {
-                    return true;
-                }
+                return hit.collider.gameObject == gameObject || hit.collider.transform.IsChildOf(transform);
             }
 
             return false;
+        }
+
+        private static Vector3 GetPointerPosition()
+        {
+            if (Input.touchCount > 0)
+            {
+                return Input.GetTouch(0).position;
+            }
+            return Input.mousePosition;
         }
 
         private static bool WasPrimaryPressReleased()
@@ -105,6 +151,21 @@ namespace RealityFractures
             }
 
             return Input.GetMouseButtonUp(0);
+        }
+
+        private static bool IsPointerOverUI()
+        {
+            if (EventSystem.current == null)
+            {
+                return false;
+            }
+
+            if (Input.touchCount > 0)
+            {
+                return EventSystem.current.IsPointerOverGameObject(Input.GetTouch(0).fingerId);
+            }
+
+            return EventSystem.current.IsPointerOverGameObject();
         }
     }
 }
